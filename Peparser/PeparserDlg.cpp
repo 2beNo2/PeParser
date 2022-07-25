@@ -994,45 +994,141 @@ void CPeparserDlg::ShowExportDirectory()
 	m_DoubleAListCtrl->InsertColumn(2, TEXT("Size"), LVCFMT_LEFT, 120);
 	m_DoubleAListCtrl->InsertColumn(3, TEXT("Value"), LVCFMT_LEFT, 120);
 
+	m_DoubleBListCtrl->InsertColumn(0, TEXT("Ordinal"), LVCFMT_LEFT, 120);
+	m_DoubleBListCtrl->InsertColumn(1, TEXT("Function RVA"), LVCFMT_LEFT, 120);
+	m_DoubleBListCtrl->InsertColumn(2, TEXT("Name Ordinal"), LVCFMT_LEFT, 120);
+	m_DoubleBListCtrl->InsertColumn(3, TEXT("Name RVA"), LVCFMT_LEFT, 120);
+	m_DoubleBListCtrl->InsertColumn(4, TEXT("Name"), LVCFMT_LEFT, 200);
+
 	PIMAGE_EXPORT_DIRECTORY pExport = (PIMAGE_EXPORT_DIRECTORY)m_pMyPe->GetExportDirectoryPointer();
 	if (pExport == NULL)
 	{
 		return;
 	}
-	
 
+	/*
+	typedef struct _IMAGE_EXPORT_DIRECTORY {
+	  DWORD   Characteristics;            
+	  DWORD   TimeDateStamp;          
+	  WORD    MajorVersion;               
+	  WORD    MinorVersion;           
+	  DWORD   Name;                   // dll名称
+	  DWORD   Base;                   // 序号查询时会用上，数组的坐标平移
+	  DWORD   NumberOfFunctions;      // 有多少个被导出的项    
+	  DWORD   NumberOfNames;          // 有多少个被名称导出的项
+	  DWORD   AddressOfFunctions;     // 导出地址表，rva
+	  DWORD   AddressOfNames;         // 导出名称表，rva
+	  DWORD   AddressOfNameOrdinals;  // 导出序号表，rva
+	} IMAGE_EXPORT_DIRECTORY, *PIMAGE_EXPORT_DIRECTORY;
+	*/
 
-	//int nItem = 0;
-	//CString csTmp;
+	LPVOID lpBase = m_pMyPe->GetDosHeaderPointer();
+	int nItem = 0;
+	CString csTmp;
 
-	//m_MainListCtrl.InsertItem(nItem, TEXT("Magic"));
-	//csTmp.Format(TEXT("%08X"), pDosHeader->e_lfanew + 24);
-	//m_MainListCtrl.SetItemText(nItem, 1, csTmp);
-	//m_MainListCtrl.SetItemText(nItem, 2, TEXT("Word"));
-	//csTmp.Format(TEXT("%04X"), pOptionalHeaders->Magic);
-	//m_MainListCtrl.SetItemText(nItem, 3, csTmp);
-	//nItem++;
+	m_DoubleAListCtrl->InsertItem(nItem, TEXT("Characteristics"));
+	csTmp.Format(TEXT("%08X"), ((char*)&pExport->Characteristics - (char*)lpBase));
+	m_DoubleAListCtrl->SetItemText(nItem, 1, csTmp);
+	m_DoubleAListCtrl->SetItemText(nItem, 2, TEXT("Dword"));
+	csTmp.Format(TEXT("%08X"), pExport->Characteristics);
+	m_DoubleAListCtrl->SetItemText(nItem, 3, csTmp);
+	nItem++;
 
-	//m_MainListCtrl.InsertItem(nItem, TEXT("MajorLinkerVersion"));
-	//csTmp.Format(TEXT("%08X"), pDosHeader->e_lfanew + 26);
-	//m_MainListCtrl.SetItemText(nItem, 1, csTmp);
-	//m_MainListCtrl.SetItemText(nItem, 2, TEXT("Byte"));
-	//csTmp.Format(TEXT("%02x"), pOptionalHeaders->MajorLinkerVersion);
-	//m_MainListCtrl.SetItemText(nItem, 3, csTmp);
-	//nItem++;
+	m_DoubleAListCtrl->InsertItem(nItem, TEXT("TimeDateStamp"));
+	csTmp.Format(TEXT("%08X"), ((char*)&pExport->TimeDateStamp - (char*)lpBase));
+	m_DoubleAListCtrl->SetItemText(nItem, 1, csTmp);
+	m_DoubleAListCtrl->SetItemText(nItem, 2, TEXT("Dword"));
+	csTmp.Format(TEXT("%08X"), pExport->TimeDateStamp);
+	m_DoubleAListCtrl->SetItemText(nItem, 3, csTmp);
+	nItem++;
+
+	m_DoubleAListCtrl->InsertItem(nItem, TEXT("MajorVersion"));
+	csTmp.Format(TEXT("%08X"), ((char*)&pExport->MajorVersion - (char*)lpBase));
+	m_DoubleAListCtrl->SetItemText(nItem, 1, csTmp);
+	m_DoubleAListCtrl->SetItemText(nItem, 2, TEXT("Word"));
+	csTmp.Format(TEXT("%04X"), pExport->MajorVersion);
+	m_DoubleAListCtrl->SetItemText(nItem, 3, csTmp);
+	nItem++;
+
+	m_DoubleAListCtrl->InsertItem(nItem, TEXT("MinorVersion"));
+	csTmp.Format(TEXT("%08X"), ((char*)&pExport->MinorVersion - (char*)lpBase));
+	m_DoubleAListCtrl->SetItemText(nItem, 1, csTmp);
+	m_DoubleAListCtrl->SetItemText(nItem, 2, TEXT("Word"));
+	csTmp.Format(TEXT("%04X"), pExport->MinorVersion);
+	m_DoubleAListCtrl->SetItemText(nItem, 3, csTmp);
+	nItem++;
+
+	m_DoubleAListCtrl->InsertItem(nItem, TEXT("Name"));
+	csTmp.Format(TEXT("%08X"), ((char*)&pExport->Name - (char*)lpBase));
+	m_DoubleAListCtrl->SetItemText(nItem, 1, csTmp);
+	m_DoubleAListCtrl->SetItemText(nItem, 2, TEXT("Dword"));
+	csTmp.Format(TEXT("%08X"), pExport->Name);
+	m_DoubleAListCtrl->SetItemText(nItem, 3, csTmp);
+	nItem++;
+
+	m_DoubleAListCtrl->InsertItem(nItem, TEXT("Base"));
+	csTmp.Format(TEXT("%08X"), ((char*)&pExport->Base - (char*)lpBase));
+	m_DoubleAListCtrl->SetItemText(nItem, 1, csTmp);
+	m_DoubleAListCtrl->SetItemText(nItem, 2, TEXT("Dword"));
+	csTmp.Format(TEXT("%08X"), pExport->Base);
+	m_DoubleAListCtrl->SetItemText(nItem, 3, csTmp);
+	nItem++;
+
+	m_DoubleAListCtrl->InsertItem(nItem, TEXT("NumberOfFunctions"));
+	csTmp.Format(TEXT("%08X"), ((char*)&pExport->NumberOfFunctions - (char*)lpBase));
+	m_DoubleAListCtrl->SetItemText(nItem, 1, csTmp);
+	m_DoubleAListCtrl->SetItemText(nItem, 2, TEXT("Dword"));
+	csTmp.Format(TEXT("%08X"), pExport->NumberOfFunctions);
+	m_DoubleAListCtrl->SetItemText(nItem, 3, csTmp);
+	nItem++;
+
+	m_DoubleAListCtrl->InsertItem(nItem, TEXT("NumberOfNames"));
+	csTmp.Format(TEXT("%08X"), ((char*)&pExport->NumberOfNames - (char*)lpBase));
+	m_DoubleAListCtrl->SetItemText(nItem, 1, csTmp);
+	m_DoubleAListCtrl->SetItemText(nItem, 2, TEXT("Dword"));
+	csTmp.Format(TEXT("%08X"), pExport->NumberOfNames);
+	m_DoubleAListCtrl->SetItemText(nItem, 3, csTmp);
+	nItem++;
+
+	m_DoubleAListCtrl->InsertItem(nItem, TEXT("AddressOfFunctions"));
+	csTmp.Format(TEXT("%08X"), ((char*)&pExport->AddressOfFunctions - (char*)lpBase));
+	m_DoubleAListCtrl->SetItemText(nItem, 1, csTmp);
+	m_DoubleAListCtrl->SetItemText(nItem, 2, TEXT("Dword"));
+	csTmp.Format(TEXT("%08X"), pExport->AddressOfFunctions);
+	m_DoubleAListCtrl->SetItemText(nItem, 3, csTmp);
+	nItem++;
+
+	m_DoubleAListCtrl->InsertItem(nItem, TEXT("AddressOfNames"));
+	csTmp.Format(TEXT("%08X"), ((char*)&pExport->AddressOfNames - (char*)lpBase));
+	m_DoubleAListCtrl->SetItemText(nItem, 1, csTmp);
+	m_DoubleAListCtrl->SetItemText(nItem, 2, TEXT("Dword"));
+	csTmp.Format(TEXT("%08X"), pExport->AddressOfNames);
+	m_DoubleAListCtrl->SetItemText(nItem, 3, csTmp);
+	nItem++;
+
+	m_DoubleAListCtrl->InsertItem(nItem, TEXT("AddressOfNameOrdinals"));
+	csTmp.Format(TEXT("%08X"), ((char*)&pExport->AddressOfNameOrdinals - (char*)lpBase));
+	m_DoubleAListCtrl->SetItemText(nItem, 1, csTmp);
+	m_DoubleAListCtrl->SetItemText(nItem, 2, TEXT("Dword"));
+	csTmp.Format(TEXT("%08X"), pExport->AddressOfNameOrdinals);
+	m_DoubleAListCtrl->SetItemText(nItem, 3, csTmp);
+	nItem++;
+
+	// 插入导出表的详细信息
+	nItem = 0;
 
 
 }
 
 void CPeparserDlg::ShowImportDirectory()
 {
-	ClearMainListCtrl();
-	m_MainListCtrl.InsertColumn(0, TEXT("Name"), LVCFMT_LEFT, 120);
-	m_MainListCtrl.InsertColumn(1, TEXT("Virtual Size"), LVCFMT_LEFT, 120);
-	m_MainListCtrl.InsertColumn(2, TEXT("Virtual Address"), LVCFMT_LEFT, 120);
-	m_MainListCtrl.InsertColumn(3, TEXT("Raw Size"), LVCFMT_LEFT, 120);
-	m_MainListCtrl.InsertColumn(4, TEXT("Raw Address"), LVCFMT_LEFT, 120);
-	m_MainListCtrl.InsertColumn(5, TEXT("Characteristics"), LVCFMT_LEFT, 120);
+	ClearDoubleAListCtrl();
+	ClearDoubleBListCtrl();
+
+	m_DoubleAListCtrl->InsertColumn(0, TEXT("Member"), LVCFMT_LEFT, 150);
+	m_DoubleAListCtrl->InsertColumn(1, TEXT("Offset"), LVCFMT_LEFT, 120);
+	m_DoubleAListCtrl->InsertColumn(2, TEXT("Size"), LVCFMT_LEFT, 120);
+	m_DoubleAListCtrl->InsertColumn(3, TEXT("Value"), LVCFMT_LEFT, 120);
 
 	PIMAGE_IMPORT_DESCRIPTOR pImport = (PIMAGE_IMPORT_DESCRIPTOR)m_pMyPe->GetImportDirectoryPointer();
 	if (pImport == NULL)
@@ -1043,13 +1139,13 @@ void CPeparserDlg::ShowImportDirectory()
 
 void CPeparserDlg::ShowResourceDirectory()
 {
-	ClearMainListCtrl();
-	m_MainListCtrl.InsertColumn(0, TEXT("Name"), LVCFMT_LEFT, 120);
-	m_MainListCtrl.InsertColumn(1, TEXT("Virtual Size"), LVCFMT_LEFT, 120);
-	m_MainListCtrl.InsertColumn(2, TEXT("Virtual Address"), LVCFMT_LEFT, 120);
-	m_MainListCtrl.InsertColumn(3, TEXT("Raw Size"), LVCFMT_LEFT, 120);
-	m_MainListCtrl.InsertColumn(4, TEXT("Raw Address"), LVCFMT_LEFT, 120);
-	m_MainListCtrl.InsertColumn(5, TEXT("Characteristics"), LVCFMT_LEFT, 120);
+	ClearDoubleAListCtrl();
+	ClearDoubleBListCtrl();
+
+	m_DoubleAListCtrl->InsertColumn(0, TEXT("Member"), LVCFMT_LEFT, 150);
+	m_DoubleAListCtrl->InsertColumn(1, TEXT("Offset"), LVCFMT_LEFT, 120);
+	m_DoubleAListCtrl->InsertColumn(2, TEXT("Size"), LVCFMT_LEFT, 120);
+	m_DoubleAListCtrl->InsertColumn(3, TEXT("Value"), LVCFMT_LEFT, 120);
 
 	PIMAGE_RESOURCE_DIRECTORY pResource = (PIMAGE_RESOURCE_DIRECTORY)m_pMyPe->GetResourceDirectoryPointer();
 	if (pResource == NULL)
@@ -1060,13 +1156,13 @@ void CPeparserDlg::ShowResourceDirectory()
 
 void CPeparserDlg::ShowRelocDirectory()
 {
-	ClearMainListCtrl();
-	m_MainListCtrl.InsertColumn(0, TEXT("Name"), LVCFMT_LEFT, 120);
-	m_MainListCtrl.InsertColumn(1, TEXT("Virtual Size"), LVCFMT_LEFT, 120);
-	m_MainListCtrl.InsertColumn(2, TEXT("Virtual Address"), LVCFMT_LEFT, 120);
-	m_MainListCtrl.InsertColumn(3, TEXT("Raw Size"), LVCFMT_LEFT, 120);
-	m_MainListCtrl.InsertColumn(4, TEXT("Raw Address"), LVCFMT_LEFT, 120);
-	m_MainListCtrl.InsertColumn(5, TEXT("Characteristics"), LVCFMT_LEFT, 120);
+	ClearDoubleAListCtrl();
+	ClearDoubleBListCtrl();
+
+	m_DoubleAListCtrl->InsertColumn(0, TEXT("Member"), LVCFMT_LEFT, 150);
+	m_DoubleAListCtrl->InsertColumn(1, TEXT("Offset"), LVCFMT_LEFT, 120);
+	m_DoubleAListCtrl->InsertColumn(2, TEXT("Size"), LVCFMT_LEFT, 120);
+	m_DoubleAListCtrl->InsertColumn(3, TEXT("Value"), LVCFMT_LEFT, 120);
 
 	PIMAGE_BASE_RELOCATION pReloc = (PIMAGE_BASE_RELOCATION)m_pMyPe->GetRelocDirectoryPointer();
 	if (pReloc == NULL)
@@ -1077,13 +1173,13 @@ void CPeparserDlg::ShowRelocDirectory()
 
 void CPeparserDlg::ShowTlsDirectory()
 {
-	ClearMainListCtrl();
-	m_MainListCtrl.InsertColumn(0, TEXT("Name"), LVCFMT_LEFT, 120);
-	m_MainListCtrl.InsertColumn(1, TEXT("Virtual Size"), LVCFMT_LEFT, 120);
-	m_MainListCtrl.InsertColumn(2, TEXT("Virtual Address"), LVCFMT_LEFT, 120);
-	m_MainListCtrl.InsertColumn(3, TEXT("Raw Size"), LVCFMT_LEFT, 120);
-	m_MainListCtrl.InsertColumn(4, TEXT("Raw Address"), LVCFMT_LEFT, 120);
-	m_MainListCtrl.InsertColumn(5, TEXT("Characteristics"), LVCFMT_LEFT, 120);
+	ClearDoubleAListCtrl();
+	ClearDoubleBListCtrl();
+
+	m_DoubleAListCtrl->InsertColumn(0, TEXT("Member"), LVCFMT_LEFT, 150);
+	m_DoubleAListCtrl->InsertColumn(1, TEXT("Offset"), LVCFMT_LEFT, 120);
+	m_DoubleAListCtrl->InsertColumn(2, TEXT("Size"), LVCFMT_LEFT, 120);
+	m_DoubleAListCtrl->InsertColumn(3, TEXT("Value"), LVCFMT_LEFT, 120);
 
 	PIMAGE_TLS_DIRECTORY pExport = (PIMAGE_TLS_DIRECTORY)m_pMyPe->GetTlsDirectoryPointer();
 	if (pExport == NULL)

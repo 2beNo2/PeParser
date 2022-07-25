@@ -165,25 +165,25 @@ void CMyPe::InitPeFormat(void* pFileBuff)
   // 导出表
   DWORD dwExportRva = m_pOptionHeader->DataDirectory[IMAGE_DIRECTORY_ENTRY_EXPORT].VirtualAddress;
   m_dwExportSize = m_pOptionHeader->DataDirectory[IMAGE_DIRECTORY_ENTRY_EXPORT].Size;
-  m_pExportDirectory = (PIMAGE_EXPORT_DIRECTORY)Rva2Fa(m_lpFileBuff, dwExportRva);
+  m_pExportDirectory = (PIMAGE_EXPORT_DIRECTORY)(Rva2Fa(dwExportRva) + (char*)m_lpFileBuff);
 
   // 导入表
   DWORD dwImportRva = m_pOptionHeader->DataDirectory[IMAGE_DIRECTORY_ENTRY_IMPORT].VirtualAddress;
   m_dwImportSize = m_pOptionHeader->DataDirectory[IMAGE_DIRECTORY_ENTRY_IMPORT].Size;
-  m_pImportDirectory = (PIMAGE_IMPORT_DESCRIPTOR)Rva2Fa(m_lpFileBuff, dwImportRva);
+  m_pImportDirectory = (PIMAGE_IMPORT_DESCRIPTOR)(Rva2Fa(dwImportRva) + (char*)m_lpFileBuff);
 
   // 资源表
   DWORD dwResourceRva = m_pOptionHeader->DataDirectory[IMAGE_DIRECTORY_ENTRY_RESOURCE].VirtualAddress;
-  m_pResourceDirectory = (PIMAGE_RESOURCE_DIRECTORY)Rva2Fa(m_lpFileBuff, dwResourceRva);
+  m_pResourceDirectory = (PIMAGE_RESOURCE_DIRECTORY)(Rva2Fa(dwResourceRva) + (char*)m_lpFileBuff);
 
   // 重定位表
   DWORD dwRelocRva = m_pOptionHeader->DataDirectory[IMAGE_DIRECTORY_ENTRY_BASERELOC].VirtualAddress;
   m_dwRelocSize = m_pOptionHeader->DataDirectory[IMAGE_DIRECTORY_ENTRY_BASERELOC].Size;
-  m_pRelocDirectory = (PIMAGE_BASE_RELOCATION)Rva2Fa(m_lpFileBuff, dwRelocRva);
+  m_pRelocDirectory = (PIMAGE_BASE_RELOCATION)(Rva2Fa(dwRelocRva) + (char*)m_lpFileBuff);
 
   // TLS表
   DWORD dwTlsRva = m_pOptionHeader->DataDirectory[IMAGE_DIRECTORY_ENTRY_TLS].VirtualAddress;
-  m_pTlsDirectory = (PIMAGE_TLS_DIRECTORY)Rva2Fa(m_lpFileBuff, dwTlsRva);
+  m_pTlsDirectory = (PIMAGE_TLS_DIRECTORY)(Rva2Fa(dwTlsRva) + (char*)m_lpFileBuff);
 }
 
 void CMyPe::InitPeFormat(const char* strFilePath)
@@ -229,7 +229,7 @@ void CMyPe::InitPeFormat(const char* strFilePath)
   InitPeFormat(m_lpFileBuff);
 }
 
-DWORD CMyPe::Rva2Fa(LPVOID lpImageBase, DWORD dwRva)
+DWORD CMyPe::Rva2Fa(DWORD dwRva, LPVOID lpImageBase)
 {
   // 判断RVA是否有效,RVA是相对于模块基址的
   DWORD dwImageBase = m_dwImageBase;
@@ -251,11 +251,11 @@ DWORD CMyPe::Rva2Fa(LPVOID lpImageBase, DWORD dwRva)
     DWORD dwVirtualAddress = pSectionHeader->VirtualAddress;  // 映射到内存的地址，RVA
     DWORD dwVirtualSize = pSectionHeader->Misc.VirtualSize;   // 映射到内存的数据大小，OS会将该值对齐后申请内存
     DWORD dwPointerToRawData = pSectionHeader->PointerToRawData; // 文件中数据的偏移
-    DWORD dwSizeOfRawData = pSectionHeader->SizeOfRawData; // 文件中数据对齐后大小
+    DWORD dwSizeOfRawData = pSectionHeader->SizeOfRawData;    // 文件中数据对齐后大小
 
     if (dwRva >= dwVirtualAddress && dwRva < dwVirtualAddress + dwSizeOfRawData)
     {
-      return (DWORD)lpImageBase + dwRva - dwVirtualAddress + dwPointerToRawData;
+      return dwRva - dwVirtualAddress + dwPointerToRawData;
     }
     pSectionHeader++;
   } 

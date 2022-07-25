@@ -18,16 +18,16 @@ public:
   static int IsPeFile(void* pFileBuff);
   static int IsPeFile(const char* strFilePath);
 
+public:
+  DWORD Rva2Fa(DWORD dwRva, LPVOID lpImageBase = NULL);
+  //GetProcAddress(hInst, szName)
+  //GetProcAddress(hInst, nOrd)
+  //GetProcFunName(_pfnAddr)
+
 private:
   void Init();
   void InitPeFormat(void* pFileBuff);
   void InitPeFormat(const char* strFilePath);
-
-public:
-  DWORD Rva2Fa(LPVOID lpImageBase, DWORD dwRva);
-  //GetProcAddress(hInst, szName)
-  //GetProcAddress(hInst, nOrd)
-  //GetProcFunName(_pfnAddr)
 
 private:
   HANDLE m_hFile;
