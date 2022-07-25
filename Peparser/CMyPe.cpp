@@ -165,25 +165,66 @@ void CMyPe::InitPeFormat(void* pFileBuff)
   // 导出表
   DWORD dwExportRva = m_pOptionHeader->DataDirectory[IMAGE_DIRECTORY_ENTRY_EXPORT].VirtualAddress;
   m_dwExportSize = m_pOptionHeader->DataDirectory[IMAGE_DIRECTORY_ENTRY_EXPORT].Size;
-  m_pExportDirectory = (PIMAGE_EXPORT_DIRECTORY)(Rva2Fa(dwExportRva) + (char*)m_lpFileBuff);
+  DWORD dwFa = Rva2Fa(dwExportRva);
+  if (dwFa == -1) 
+  {
+    m_pExportDirectory = NULL;
+  }
+  else
+  {
+    m_pExportDirectory = (PIMAGE_EXPORT_DIRECTORY)(dwFa + (char*)m_lpFileBuff);
+  }
+  
 
   // 导入表
   DWORD dwImportRva = m_pOptionHeader->DataDirectory[IMAGE_DIRECTORY_ENTRY_IMPORT].VirtualAddress;
   m_dwImportSize = m_pOptionHeader->DataDirectory[IMAGE_DIRECTORY_ENTRY_IMPORT].Size;
-  m_pImportDirectory = (PIMAGE_IMPORT_DESCRIPTOR)(Rva2Fa(dwImportRva) + (char*)m_lpFileBuff);
+  dwFa = Rva2Fa(dwImportRva);
+  if (dwFa == -1)
+  {
+    m_pImportDirectory = NULL;
+  }
+  else
+  {
+    m_pImportDirectory = (PIMAGE_IMPORT_DESCRIPTOR)(dwFa + (char*)m_lpFileBuff);
+  }
 
   // 资源表
   DWORD dwResourceRva = m_pOptionHeader->DataDirectory[IMAGE_DIRECTORY_ENTRY_RESOURCE].VirtualAddress;
-  m_pResourceDirectory = (PIMAGE_RESOURCE_DIRECTORY)(Rva2Fa(dwResourceRva) + (char*)m_lpFileBuff);
+  dwFa = Rva2Fa(dwResourceRva);
+  if (dwFa == -1)
+  {
+    m_pResourceDirectory = NULL;
+  }
+  else
+  {
+    m_pResourceDirectory = (PIMAGE_RESOURCE_DIRECTORY)(dwFa + (char*)m_lpFileBuff);
+  }
 
   // 重定位表
   DWORD dwRelocRva = m_pOptionHeader->DataDirectory[IMAGE_DIRECTORY_ENTRY_BASERELOC].VirtualAddress;
   m_dwRelocSize = m_pOptionHeader->DataDirectory[IMAGE_DIRECTORY_ENTRY_BASERELOC].Size;
-  m_pRelocDirectory = (PIMAGE_BASE_RELOCATION)(Rva2Fa(dwRelocRva) + (char*)m_lpFileBuff);
+  dwFa = Rva2Fa(dwRelocRva);
+  if (dwFa == -1)
+  {
+    m_pRelocDirectory = NULL;
+  }
+  else
+  {
+    m_pRelocDirectory = (PIMAGE_BASE_RELOCATION)(dwFa + (char*)m_lpFileBuff);
+  }
 
   // TLS表
   DWORD dwTlsRva = m_pOptionHeader->DataDirectory[IMAGE_DIRECTORY_ENTRY_TLS].VirtualAddress;
-  m_pTlsDirectory = (PIMAGE_TLS_DIRECTORY)(Rva2Fa(dwTlsRva) + (char*)m_lpFileBuff);
+  dwFa = Rva2Fa(dwTlsRva);
+  if (dwFa == -1)
+  {
+    m_pTlsDirectory = NULL;
+  }
+  else
+  {
+    m_pTlsDirectory = (PIMAGE_TLS_DIRECTORY)(dwFa + (char*)m_lpFileBuff);
+  }
 }
 
 void CMyPe::InitPeFormat(const char* strFilePath)
