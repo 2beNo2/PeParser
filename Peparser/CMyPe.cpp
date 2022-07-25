@@ -232,12 +232,18 @@ void CMyPe::InitPeFormat(const char* strFilePath)
 DWORD CMyPe::Rva2Fa(LPVOID lpImageBase, DWORD dwRva)
 {
   // 判断RVA是否有效,RVA是相对于模块基址的
-  DWORD dwVa = m_dwImageBase + dwRva;
-  if (dwVa < m_dwImageBase || dwVa >= m_dwImageBase + m_dwSizeOfImage)
+  DWORD dwImageBase = m_dwImageBase;
+  if (lpImageBase != NULL)
+  {
+    dwImageBase = (DWORD)lpImageBase;
+  }
+
+  DWORD dwVa = dwImageBase + dwRva;
+  if (dwVa < dwImageBase || dwVa >= dwImageBase + m_dwSizeOfImage)
   {
     return -1;
   }
-
+  
   // 遍历节表，获取FA
   PIMAGE_SECTION_HEADER pSectionHeader = m_pSectionHeader;
   for (int i = 0; i < m_wNumberOfSections; ++i)

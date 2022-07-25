@@ -41,7 +41,13 @@ private:
 private:
 	// 在ListCtrl控件上显示对应的PE结构体的成员
 	CListCtrl m_MainListCtrl;
-	void ClearListCtrl();
+	CListCtrl *m_DoubleAListCtrl;
+	CListCtrl *m_DoubleBListCtrl;
+	void InitDoubleListCtrl();
+	void ClearMainListCtrl();
+	void ClearDoubleAListCtrl();
+	void ClearDoubleBListCtrl();
+
 	void ShowDosHeader();
 	void ShowNtHeader();
 	void ShowFileHeader();

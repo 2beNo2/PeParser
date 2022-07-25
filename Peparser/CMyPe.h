@@ -23,8 +23,11 @@ private:
   void InitPeFormat(void* pFileBuff);
   void InitPeFormat(const char* strFilePath);
 
-private:
+public:
   DWORD Rva2Fa(LPVOID lpImageBase, DWORD dwRva);
+  //GetProcAddress(hInst, szName)
+  //GetProcAddress(hInst, nOrd)
+  //GetProcFunName(_pfnAddr)
 
 private:
   HANDLE m_hFile;

@@ -121,6 +121,9 @@ BOOL CPeparserDlg::OnInitDialog()
 	m_MainListCtrl.SetExtendedStyle(
 		m_MainListCtrl.GetExtendedStyle() | LVS_EX_FULLROWSELECT | LVS_EX_GRIDLINES);
 
+	// 初始化double的ListCtrl
+	InitDoubleListCtrl();
+
 	return TRUE;  // 除非将焦点设置到控件，否则返回 TRUE
 }
 
@@ -247,6 +250,8 @@ void CPeparserDlg::OnOpenfile()
 void CPeparserDlg::InitHeapData()
 {
 	m_pMyPe = NULL;
+	m_DoubleAListCtrl = NULL;
+	m_DoubleBListCtrl = NULL;
 }
 
 void CPeparserDlg::FinitHeapData()
@@ -256,10 +261,26 @@ void CPeparserDlg::FinitHeapData()
 		delete m_pMyPe;
 		m_pMyPe = NULL;
 	}
+
+	if (m_DoubleAListCtrl != NULL)
+	{
+		delete m_DoubleAListCtrl;
+		m_DoubleAListCtrl = NULL;
+	}
+
+	if (m_DoubleBListCtrl != NULL)
+	{
+		delete m_DoubleBListCtrl;
+		m_DoubleBListCtrl = NULL;
+	}
 }
 
-void CPeparserDlg::ClearListCtrl()
+void CPeparserDlg::ClearMainListCtrl()
 {
+	m_MainListCtrl.ShowWindow(SW_SHOW);
+	m_DoubleAListCtrl->ShowWindow(SW_HIDE);
+	m_DoubleBListCtrl->ShowWindow(SW_HIDE);
+
 	// 删除所有的item
 	m_MainListCtrl.DeleteAllItems();
 
@@ -271,11 +292,84 @@ void CPeparserDlg::ClearListCtrl()
 	}
 }
 
+void CPeparserDlg::ClearDoubleAListCtrl()
+{
+	m_MainListCtrl.ShowWindow(SW_HIDE);
+	m_DoubleAListCtrl->ShowWindow(SW_SHOW);
+	m_DoubleBListCtrl->ShowWindow(SW_SHOW);
+
+	// 删除所有的item
+	m_DoubleAListCtrl->DeleteAllItems();
+
+	// 删除所有的表头
+	int nColumnCount = m_DoubleAListCtrl->GetHeaderCtrl()->GetItemCount();
+	for (int i = 0; i < nColumnCount; i++)
+	{
+		m_DoubleAListCtrl->DeleteColumn(0);
+	}
+}
+
+void CPeparserDlg::ClearDoubleBListCtrl()
+{
+	m_MainListCtrl.ShowWindow(SW_HIDE);
+	m_DoubleAListCtrl->ShowWindow(SW_SHOW);
+	m_DoubleBListCtrl->ShowWindow(SW_SHOW);
+
+	// 删除所有的item
+	m_DoubleBListCtrl->DeleteAllItems();
+
+	// 删除所有的表头
+	int nColumnCount = m_DoubleBListCtrl->GetHeaderCtrl()->GetItemCount();
+	for (int i = 0; i < nColumnCount; i++)
+	{
+		m_DoubleBListCtrl->DeleteColumn(0);
+	}
+}
+
+void CPeparserDlg::InitDoubleListCtrl()
+{
+	// 获取MainListCtrl在客户区的rect
+	CRect mainListRect;
+	GetDlgItem(LST_PE)->GetWindowRect(&mainListRect);
+	ScreenToClient(&mainListRect);
+
+	// 初始化新的ListCtrl的rect
+	CRect doubleAListRect;
+	doubleAListRect.top = mainListRect.top;
+	doubleAListRect.left = mainListRect.left;
+	doubleAListRect.bottom = (mainListRect.bottom - mainListRect.top) / 2 + mainListRect.top;
+	doubleAListRect.right = mainListRect.right;
+	m_DoubleAListCtrl = new CListCtrl;
+	m_DoubleAListCtrl->Create(GetWindowLong(m_MainListCtrl.m_hWnd, GWL_STYLE),
+								doubleAListRect,
+								this,
+								0x300);
+	m_DoubleAListCtrl->SetExtendedStyle(
+		m_DoubleAListCtrl->GetExtendedStyle() | LVS_EX_FULLROWSELECT | LVS_EX_GRIDLINES);
+	m_DoubleAListCtrl->ShowWindow(SW_HIDE);
+
+
+	CRect doubleBListRect;
+	doubleBListRect.top = (mainListRect.bottom - mainListRect.top) / 2  + mainListRect.top;
+	doubleBListRect.left = mainListRect.left;
+	doubleBListRect.bottom = mainListRect.bottom;
+	doubleBListRect.right = mainListRect.right;
+	m_DoubleBListCtrl = new CListCtrl;
+	m_DoubleBListCtrl->Create(GetWindowLong(m_MainListCtrl.m_hWnd, GWL_STYLE),
+								doubleBListRect,
+								this,
+								0x301);
+	 
+	m_DoubleBListCtrl->SetExtendedStyle(
+		m_DoubleBListCtrl->GetExtendedStyle() | LVS_EX_FULLROWSELECT | LVS_EX_GRIDLINES);
+	m_DoubleBListCtrl->ShowWindow(SW_HIDE);
+}
+
 void CPeparserDlg::ShowDosHeader()
 {
 	PIMAGE_DOS_HEADER pDosHeader = (PIMAGE_DOS_HEADER)m_pMyPe->GetDosHeaderPointer();
 
-	ClearListCtrl();
+	ClearMainListCtrl();
 	// 插入表头
 	m_MainListCtrl.InsertColumn(0, TEXT("Member"), LVCFMT_LEFT, 150);
 	m_MainListCtrl.InsertColumn(1, TEXT("Offset"), LVCFMT_LEFT, 120);
@@ -497,7 +591,7 @@ void CPeparserDlg::ShowNtHeader()
 	PIMAGE_DOS_HEADER pDosHeader = (PIMAGE_DOS_HEADER)m_pMyPe->GetDosHeaderPointer();
 	PIMAGE_NT_HEADERS pNtHeaders = (PIMAGE_NT_HEADERS)m_pMyPe->GetNtHeaderPointer();
 
-	ClearListCtrl();
+	ClearMainListCtrl();
 	m_MainListCtrl.InsertColumn(0, TEXT("Member"), LVCFMT_LEFT, 150);
 	m_MainListCtrl.InsertColumn(1, TEXT("Offset"), LVCFMT_LEFT, 120);
 	m_MainListCtrl.InsertColumn(2, TEXT("Size"), LVCFMT_LEFT, 120);
@@ -520,7 +614,7 @@ void CPeparserDlg::ShowFileHeader()
 	PIMAGE_NT_HEADERS pNtHeaders = (PIMAGE_NT_HEADERS)m_pMyPe->GetNtHeaderPointer();
 	PIMAGE_FILE_HEADER pFileHeaders = (PIMAGE_FILE_HEADER)m_pMyPe->GetFileHeaderPointer();
 
-	ClearListCtrl();
+	ClearMainListCtrl();
 	m_MainListCtrl.InsertColumn(0, TEXT("Member"), LVCFMT_LEFT, 220);
 	m_MainListCtrl.InsertColumn(1, TEXT("Offset"), LVCFMT_LEFT, 120);
 	m_MainListCtrl.InsertColumn(2, TEXT("Size"), LVCFMT_LEFT, 120);
@@ -593,7 +687,7 @@ void CPeparserDlg::ShowOptionalHeader()
 	PIMAGE_FILE_HEADER pFileHeaders = (PIMAGE_FILE_HEADER)m_pMyPe->GetFileHeaderPointer();
 	PIMAGE_OPTIONAL_HEADER pOptionalHeaders = (PIMAGE_OPTIONAL_HEADER)m_pMyPe->GetOptionHeaderPointer();
 
-	ClearListCtrl();
+	ClearMainListCtrl();
 	m_MainListCtrl.InsertColumn(0, TEXT("Member"), LVCFMT_LEFT, 220);
 	m_MainListCtrl.InsertColumn(1, TEXT("Offset"), LVCFMT_LEFT, 120);
 	m_MainListCtrl.InsertColumn(2, TEXT("Size"), LVCFMT_LEFT, 120);
@@ -847,7 +941,7 @@ void CPeparserDlg::ShowOptionalHeader()
 
 void CPeparserDlg::ShowSectionHeader()
 {
-	ClearListCtrl();
+	ClearMainListCtrl();
 	m_MainListCtrl.InsertColumn(0, TEXT("Name"), LVCFMT_LEFT, 120);
 	m_MainListCtrl.InsertColumn(1, TEXT("Virtual Size"), LVCFMT_LEFT, 120);
 	m_MainListCtrl.InsertColumn(2, TEXT("Virtual Address"), LVCFMT_LEFT, 120);
@@ -892,24 +986,47 @@ void CPeparserDlg::ShowSectionHeader()
 
 void CPeparserDlg::ShowExportDirectory()
 {
-	ClearListCtrl();
-	m_MainListCtrl.InsertColumn(0, TEXT("Member"), LVCFMT_LEFT, 220);
-	m_MainListCtrl.InsertColumn(1, TEXT("Offset"), LVCFMT_LEFT, 120);
-	m_MainListCtrl.InsertColumn(2, TEXT("Size"), LVCFMT_LEFT, 120);
-	m_MainListCtrl.InsertColumn(3, TEXT("Value"), LVCFMT_LEFT, 120);
+	ClearDoubleAListCtrl();
+	ClearDoubleBListCtrl();
+
+	m_DoubleAListCtrl->InsertColumn(0, TEXT("Member"), LVCFMT_LEFT, 150);
+	m_DoubleAListCtrl->InsertColumn(1, TEXT("Offset"), LVCFMT_LEFT, 120);
+	m_DoubleAListCtrl->InsertColumn(2, TEXT("Size"), LVCFMT_LEFT, 120);
+	m_DoubleAListCtrl->InsertColumn(3, TEXT("Value"), LVCFMT_LEFT, 120);
 
 	PIMAGE_EXPORT_DIRECTORY pExport = (PIMAGE_EXPORT_DIRECTORY)m_pMyPe->GetExportDirectoryPointer();
 	if (pExport == NULL)
 	{
 		return;
 	}
+	
+
+
+	//int nItem = 0;
+	//CString csTmp;
+
+	//m_MainListCtrl.InsertItem(nItem, TEXT("Magic"));
+	//csTmp.Format(TEXT("%08X"), pDosHeader->e_lfanew + 24);
+	//m_MainListCtrl.SetItemText(nItem, 1, csTmp);
+	//m_MainListCtrl.SetItemText(nItem, 2, TEXT("Word"));
+	//csTmp.Format(TEXT("%04X"), pOptionalHeaders->Magic);
+	//m_MainListCtrl.SetItemText(nItem, 3, csTmp);
+	//nItem++;
+
+	//m_MainListCtrl.InsertItem(nItem, TEXT("MajorLinkerVersion"));
+	//csTmp.Format(TEXT("%08X"), pDosHeader->e_lfanew + 26);
+	//m_MainListCtrl.SetItemText(nItem, 1, csTmp);
+	//m_MainListCtrl.SetItemText(nItem, 2, TEXT("Byte"));
+	//csTmp.Format(TEXT("%02x"), pOptionalHeaders->MajorLinkerVersion);
+	//m_MainListCtrl.SetItemText(nItem, 3, csTmp);
+	//nItem++;
 
 
 }
 
 void CPeparserDlg::ShowImportDirectory()
 {
-	ClearListCtrl();
+	ClearMainListCtrl();
 	m_MainListCtrl.InsertColumn(0, TEXT("Name"), LVCFMT_LEFT, 120);
 	m_MainListCtrl.InsertColumn(1, TEXT("Virtual Size"), LVCFMT_LEFT, 120);
 	m_MainListCtrl.InsertColumn(2, TEXT("Virtual Address"), LVCFMT_LEFT, 120);
@@ -926,7 +1043,7 @@ void CPeparserDlg::ShowImportDirectory()
 
 void CPeparserDlg::ShowResourceDirectory()
 {
-	ClearListCtrl();
+	ClearMainListCtrl();
 	m_MainListCtrl.InsertColumn(0, TEXT("Name"), LVCFMT_LEFT, 120);
 	m_MainListCtrl.InsertColumn(1, TEXT("Virtual Size"), LVCFMT_LEFT, 120);
 	m_MainListCtrl.InsertColumn(2, TEXT("Virtual Address"), LVCFMT_LEFT, 120);
@@ -943,7 +1060,7 @@ void CPeparserDlg::ShowResourceDirectory()
 
 void CPeparserDlg::ShowRelocDirectory()
 {
-	ClearListCtrl();
+	ClearMainListCtrl();
 	m_MainListCtrl.InsertColumn(0, TEXT("Name"), LVCFMT_LEFT, 120);
 	m_MainListCtrl.InsertColumn(1, TEXT("Virtual Size"), LVCFMT_LEFT, 120);
 	m_MainListCtrl.InsertColumn(2, TEXT("Virtual Address"), LVCFMT_LEFT, 120);
@@ -960,7 +1077,7 @@ void CPeparserDlg::ShowRelocDirectory()
 
 void CPeparserDlg::ShowTlsDirectory()
 {
-	ClearListCtrl();
+	ClearMainListCtrl();
 	m_MainListCtrl.InsertColumn(0, TEXT("Name"), LVCFMT_LEFT, 120);
 	m_MainListCtrl.InsertColumn(1, TEXT("Virtual Size"), LVCFMT_LEFT, 120);
 	m_MainListCtrl.InsertColumn(2, TEXT("Virtual Address"), LVCFMT_LEFT, 120);
@@ -992,8 +1109,6 @@ void CPeparserDlg::OnSelchangedTreePe(NMHDR* pNMHDR, LRESULT* pResult)
 	{
 		return;
 	}
-
-	ClearListCtrl();
 
 	HTREEITEM hTreeItem = m_TreeCtrl.GetSelectedItem();
 	CString csItemText = m_TreeCtrl.GetItemText(hTreeItem);
