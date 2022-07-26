@@ -994,11 +994,11 @@ void CPeparserDlg::ShowExportDirectory()
 	m_DoubleAListCtrl->InsertColumn(2, TEXT("Size"), LVCFMT_LEFT, 120);
 	m_DoubleAListCtrl->InsertColumn(3, TEXT("Value"), LVCFMT_LEFT, 120);
 
-	m_DoubleBListCtrl->InsertColumn(0, TEXT("Ordinal"), LVCFMT_LEFT, 160);
-	m_DoubleBListCtrl->InsertColumn(1, TEXT("Function RVA"), LVCFMT_LEFT, 160);
-	m_DoubleBListCtrl->InsertColumn(2, TEXT("Name Ordinal"), LVCFMT_LEFT, 160);
-	m_DoubleBListCtrl->InsertColumn(3, TEXT("Name RVA"), LVCFMT_LEFT, 160);
-	m_DoubleBListCtrl->InsertColumn(4, TEXT("Name"), LVCFMT_LEFT, 200);
+	m_DoubleBListCtrl->InsertColumn(0, TEXT("Ordinal"), LVCFMT_LEFT, 120);
+	m_DoubleBListCtrl->InsertColumn(1, TEXT("Function RVA"), LVCFMT_LEFT, 120);
+	m_DoubleBListCtrl->InsertColumn(2, TEXT("Name Ordinal"), LVCFMT_LEFT, 120);
+	m_DoubleBListCtrl->InsertColumn(3, TEXT("Name RVA"), LVCFMT_LEFT, 120);
+	m_DoubleBListCtrl->InsertColumn(4, TEXT("Name"), LVCFMT_LEFT, 160);
 
 	PIMAGE_EXPORT_DIRECTORY pExport = (PIMAGE_EXPORT_DIRECTORY)m_pMyPe->GetExportDirectoryPointer();
 	if (pExport == NULL)
@@ -1115,7 +1115,38 @@ void CPeparserDlg::ShowExportDirectory()
 	nItem++;
 
 	// 插入导出表的详细信息
-	nItem = 0;
+	DWORD dwBase = pExport->Base;
+	DWORD dwNumberOfFunctions = pExport->NumberOfFunctions;
+	DWORD dwNumberOfNames = pExport->NumberOfNames;
+
+	DWORD dwAddressOfFunctions = pExport->AddressOfFunctions;
+	DWORD *pAddressOfFunctions = (DWORD*)(m_pMyPe->Rva2Fa(dwAddressOfFunctions) + (char*)m_pMyPe->GetDosHeaderPointer());
+
+	DWORD dwAddressOfNames = pExport->AddressOfNames;
+	DWORD* pAddressOfNames = (DWORD*)(m_pMyPe->Rva2Fa(dwAddressOfNames) + (char*)m_pMyPe->GetDosHeaderPointer());
+
+	DWORD dwAddressOfNameOrdinals = pExport->AddressOfNameOrdinals;
+	WORD* pAddressOfNameOrdinals = (WORD*)(m_pMyPe->Rva2Fa(dwAddressOfNameOrdinals) + (char*)m_pMyPe->GetDosHeaderPointer());
+
+	for (DWORD i = 0; i < dwNumberOfFunctions; ++i) {
+		csTmp.Format(TEXT("%d"), dwBase + i);
+		m_DoubleBListCtrl->InsertItem(i, csTmp);
+		csTmp.Format(TEXT("%08X"), pAddressOfFunctions[i]);
+		m_DoubleBListCtrl->SetItemText(i, 1, csTmp);
+		
+		LPVOID lpName = m_pMyPe->GetExportName(i);
+		if(lpName == NULL)
+		{
+			csTmp.Format(TEXT("%s"), TEXT("NA"));
+		}
+		else
+		{
+			csTmp.Format(TEXT("%s"), (char*)lpName);
+		}
+
+		m_DoubleBListCtrl->SetItemText(i, 2, csTmp);
+
+	}
 
 
 }

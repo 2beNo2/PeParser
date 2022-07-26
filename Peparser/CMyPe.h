@@ -19,6 +19,8 @@ public:
   static int IsPeFile(const char* strFilePath);
 
 public:
+  LPVOID GetExportName(DWORD dwOrdinal); // 获取导出的名称
+
   DWORD Rva2Fa(DWORD dwRva, LPVOID lpImageBase = NULL);
   //GetProcAddress(hInst, szName)
   //GetProcAddress(hInst, nOrd)

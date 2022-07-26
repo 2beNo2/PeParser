@@ -270,6 +270,31 @@ void CMyPe::InitPeFormat(const char* strFilePath)
   InitPeFormat(m_lpFileBuff);
 }
 
+LPVOID CMyPe::GetExportName(DWORD dwOrdinal)
+{
+  DWORD dwNumberOfNames = m_pExportDirectory->NumberOfNames;
+  if(dwNumberOfNames == 0)
+  {
+    return NULL; 
+  }
+
+	DWORD dwAddressOfNames = m_pExportDirectory->AddressOfNames;
+	DWORD* pAddressOfNames = (DWORD*)(Rva2Fa(dwAddressOfNames) + (char*)m_lpFileBuff);
+
+	DWORD dwAddressOfNameOrdinals = m_pExportDirectory->AddressOfNameOrdinals;
+	WORD* pAddressOfNameOrdinals = (WORD*)(Rva2Fa(dwAddressOfNameOrdinals) + (char*)m_lpFileBuff);
+
+  for(DWORD i = 0; i < dwNumberOfNames; ++i)
+  {
+    if(pAddressOfNameOrdinals[i] == dwOrdinal)
+    {
+      DWORD dwNameAddressRva = pAddressOfNames[i];
+      return (LPVOID)(Rva2Fa(dwNameAddressRva) + (char*)m_lpFileBuff);
+    }
+  }
+  return NULL;
+}
+
 DWORD CMyPe::Rva2Fa(DWORD dwRva, LPVOID lpImageBase)
 {
   // 判断RVA是否有效,RVA是相对于模块基址的
