@@ -20,12 +20,11 @@ public:
 
 public:
   LPVOID GetExportName(DWORD dwOrdinal); // 获取导出的名称
-  static void* GetProcAddress(HMODULE hInst, const char* strFunName); // 通过导出名称获取导出地址
-  static void* GetProcAddress(HMODULE hInst, int nOrdinal); // 通过导出序号获取导出地址
-  static const char* GetProcFunName(void* pfnAddr);         // 通过函数地址获取函数名称
-
+  static void* MyGetProcAddress(HMODULE hInst, LPCSTR lpProcName); // 自实现的GetProcAddress
+  static const char* GetProcFunName(void* pfnAddr); // 通过函数地址获取函数名称
+  
   DWORD Rva2Fa(DWORD dwRva, LPVOID lpImageBase = NULL);
-
+  
 private:
   void Init();
   void InitPeFormat(void* pFileBuff);
@@ -60,11 +59,11 @@ private:
   PIMAGE_OPTIONAL_HEADER m_pOptionHeader;
   PIMAGE_SECTION_HEADER  m_pSectionHeader;
 
-  PIMAGE_EXPORT_DIRECTORY   m_pExportDirectory;   //导出表位于数据目录第0项
-  PIMAGE_IMPORT_DESCRIPTOR  m_pImportDirectory;   //导入表位于数据目录第1项
-  PIMAGE_RESOURCE_DIRECTORY m_pResourceDirectory; //资源表位于数据目录第2项
-  PIMAGE_BASE_RELOCATION    m_pRelocDirectory;    //重定位表位于数据目录第5项
-  PIMAGE_TLS_DIRECTORY      m_pTlsDirectory;      //TLS位于数据目录第9项
+  PIMAGE_EXPORT_DIRECTORY   m_pExportDirectory;   // 导出表位于数据目录第0项
+  PIMAGE_IMPORT_DESCRIPTOR  m_pImportDirectory;   // 导入表位于数据目录第1项
+  PIMAGE_RESOURCE_DIRECTORY m_pResourceDirectory; // 资源表位于数据目录第2项
+  PIMAGE_BASE_RELOCATION    m_pRelocDirectory;    // 重定位表位于数据目录第5项
+  PIMAGE_TLS_DIRECTORY      m_pTlsDirectory;      // TLS位于数据目录第9项
 
   DWORD m_dwExportSize; // 导出表的size是有用的
   DWORD m_dwImportSize; // import使用全0结构结尾

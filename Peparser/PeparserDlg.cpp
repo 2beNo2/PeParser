@@ -996,8 +996,6 @@ void CPeparserDlg::ShowExportDirectory()
 
 	m_DoubleBListCtrl->InsertColumn(0, TEXT("Ordinal"), LVCFMT_LEFT, 120);
 	m_DoubleBListCtrl->InsertColumn(1, TEXT("Function RVA"), LVCFMT_LEFT, 120);
-	//m_DoubleBListCtrl->InsertColumn(2, TEXT("Name Ordinal"), LVCFMT_LEFT, 120);
-	//m_DoubleBListCtrl->InsertColumn(3, TEXT("Name RVA"), LVCFMT_LEFT, 120);
 	m_DoubleBListCtrl->InsertColumn(2, TEXT("Name"), LVCFMT_LEFT, 160);
 
 	PIMAGE_EXPORT_DIRECTORY pExport = (PIMAGE_EXPORT_DIRECTORY)m_pMyPe->GetExportDirectoryPointer();
