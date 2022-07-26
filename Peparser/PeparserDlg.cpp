@@ -996,9 +996,9 @@ void CPeparserDlg::ShowExportDirectory()
 
 	m_DoubleBListCtrl->InsertColumn(0, TEXT("Ordinal"), LVCFMT_LEFT, 120);
 	m_DoubleBListCtrl->InsertColumn(1, TEXT("Function RVA"), LVCFMT_LEFT, 120);
-	m_DoubleBListCtrl->InsertColumn(2, TEXT("Name Ordinal"), LVCFMT_LEFT, 120);
-	m_DoubleBListCtrl->InsertColumn(3, TEXT("Name RVA"), LVCFMT_LEFT, 120);
-	m_DoubleBListCtrl->InsertColumn(4, TEXT("Name"), LVCFMT_LEFT, 160);
+	//m_DoubleBListCtrl->InsertColumn(2, TEXT("Name Ordinal"), LVCFMT_LEFT, 120);
+	//m_DoubleBListCtrl->InsertColumn(3, TEXT("Name RVA"), LVCFMT_LEFT, 120);
+	m_DoubleBListCtrl->InsertColumn(2, TEXT("Name"), LVCFMT_LEFT, 160);
 
 	PIMAGE_EXPORT_DIRECTORY pExport = (PIMAGE_EXPORT_DIRECTORY)m_pMyPe->GetExportDirectoryPointer();
 	if (pExport == NULL)
@@ -1128,7 +1128,8 @@ void CPeparserDlg::ShowExportDirectory()
 	DWORD dwAddressOfNameOrdinals = pExport->AddressOfNameOrdinals;
 	WORD* pAddressOfNameOrdinals = (WORD*)(m_pMyPe->Rva2Fa(dwAddressOfNameOrdinals) + (char*)m_pMyPe->GetDosHeaderPointer());
 
-	for (DWORD i = 0; i < dwNumberOfFunctions; ++i) {
+	for (DWORD i = 0; i < dwNumberOfFunctions; ++i) 
+	{
 		csTmp.Format(TEXT("%d"), dwBase + i);
 		m_DoubleBListCtrl->InsertItem(i, csTmp);
 		csTmp.Format(TEXT("%08X"), pAddressOfFunctions[i]);
@@ -1145,9 +1146,7 @@ void CPeparserDlg::ShowExportDirectory()
 		}
 
 		m_DoubleBListCtrl->SetItemText(i, 2, csTmp);
-
 	}
-
 
 }
 
@@ -1156,6 +1155,41 @@ void CPeparserDlg::ShowImportDirectory()
 	ClearDoubleAListCtrl();
 	ClearDoubleBListCtrl();
 
+	/*
+	typedef struct _IMAGE_IMPORT_DESCRIPTOR {
+		union {
+			DWORD   Characteristics;            
+			DWORD   OriginalFirstThunk;         // 导入名称表(INT)的RVA，GetProAddress
+		} DUMMYUNIONNAME;
+		DWORD   TimeDateStamp;                  
+		DWORD   ForwarderChain;                  
+		DWORD   Name;                           // dll名称的地址，LoadLibrary
+		DWORD   FirstThunk;                     // 指向导入地址表(IAT)的RVA，pfn填在此处
+	} IMAGE_IMPORT_DESCRIPTOR;
+	typedef IMAGE_IMPORT_DESCRIPTOR UNALIGNED *PIMAGE_IMPORT_DESCRIPTOR;
+
+	typedef struct _IMAGE_THUNK_DATA32 {
+	  union {
+		PBYTE  ForwarderString;                 //指向一个转向者字符串的RVA；
+		PDWORD Function;                        //导入函数的地址；
+		DWORD Ordinal;                          //导入函数的序号；
+		PIMAGE_IMPORT_BY_NAME  AddressOfData;   //指向IMAGE_IMPORT_BY_NAME；
+	  } u1;
+	} IMAGE_THUNK_DATA32;
+
+	`INT表`和`IAT表`都是`IMAGE_THUNK_DATA`结构的
+
+	// IMAGE_THUNK_DATA32 在不同的状态下有不同的解释方式：
+	// 在文件状态下解释为 PIMAGE_IMPORT_BY_NAME
+	// 进程状态后是函数地址
+	// 如果是序号导入的函数，最高位应该为一，取LWORD作为序号
+
+	typedef struct _IMAGE_IMPORT_BY_NAME {
+	  WORD Hint;     // 编译器添加的当前电脑中对应函数的序号
+	  BYTE Name[1];  // 字符串
+	} IMAGE_IMPORT_BY_NAME, *PIMAGE_IMPORT_BY_NAME;
+
+	*/
 	m_DoubleAListCtrl->InsertColumn(0, TEXT("Member"), LVCFMT_LEFT, 150);
 	m_DoubleAListCtrl->InsertColumn(1, TEXT("Offset"), LVCFMT_LEFT, 120);
 	m_DoubleAListCtrl->InsertColumn(2, TEXT("Size"), LVCFMT_LEFT, 120);

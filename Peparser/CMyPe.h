@@ -20,11 +20,11 @@ public:
 
 public:
   LPVOID GetExportName(DWORD dwOrdinal); // 获取导出的名称
+  static void* GetProcAddress(HMODULE hInst, const char* strFunName); // 通过导出名称获取导出地址
+  static void* GetProcAddress(HMODULE hInst, int nOrdinal); // 通过导出序号获取导出地址
+  static const char* GetProcFunName(void* pfnAddr);         // 通过函数地址获取函数名称
 
   DWORD Rva2Fa(DWORD dwRva, LPVOID lpImageBase = NULL);
-  //GetProcAddress(hInst, szName)
-  //GetProcAddress(hInst, nOrd)
-  //GetProcFunName(_pfnAddr)
 
 private:
   void Init();

@@ -270,6 +270,7 @@ void CMyPe::InitPeFormat(const char* strFilePath)
   InitPeFormat(m_lpFileBuff);
 }
 
+
 LPVOID CMyPe::GetExportName(DWORD dwOrdinal)
 {
   DWORD dwNumberOfNames = m_pExportDirectory->NumberOfNames;
@@ -293,6 +294,30 @@ LPVOID CMyPe::GetExportName(DWORD dwOrdinal)
     }
   }
   return NULL;
+}
+
+void* CMyPe::GetProcAddress(HMODULE hInst, const char* strFunName)
+{
+    PIMAGE_DOS_HEADER pDosHeader = (PIMAGE_DOS_HEADER)hInst;
+    PIMAGE_NT_HEADERS pNtHeader = (PIMAGE_NT_HEADERS)((char*)pDosHeader + pDosHeader->e_lfanew);
+    PIMAGE_FILE_HEADER pFileHeader = (PIMAGE_FILE_HEADER)(&pNtHeader->FileHeader);
+    PIMAGE_OPTIONAL_HEADER pOptionHeader = (PIMAGE_OPTIONAL_HEADER)(&pNtHeader->OptionalHeader);
+    PIMAGE_SECTION_HEADER pSectionHeader = (PIMAGE_SECTION_HEADER)((char*)pOptionHeader + pFileHeader->SizeOfOptionalHeader);
+
+    DWORD dwExportTableRva = pOptionHeader->DataDirectory[IMAGE_DIRECTORY_ENTRY_EXPORT].VirtualAddress;
+    DWORD dwExportTableFa = 0;
+
+    return nullptr;
+}
+
+void* CMyPe::GetProcAddress(HMODULE hInst, int nOrdinal)
+{
+    return nullptr;
+}
+
+const char* CMyPe::GetProcFunName(void* pfnAddr)
+{
+    return nullptr;
 }
 
 DWORD CMyPe::Rva2Fa(DWORD dwRva, LPVOID lpImageBase)
