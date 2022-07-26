@@ -299,62 +299,84 @@ LPVOID CMyPe::GetExportName(DWORD dwOrdinal)
 
 void* CMyPe::MyGetProcAddress(HMODULE hInst, LPCSTR lpProcName)
 {
-    PIMAGE_DOS_HEADER pDosHeader = (PIMAGE_DOS_HEADER)hInst;
-    PIMAGE_NT_HEADERS pNtHeader = (PIMAGE_NT_HEADERS)((char*)pDosHeader + pDosHeader->e_lfanew);
-    PIMAGE_FILE_HEADER pFileHeader = (PIMAGE_FILE_HEADER)(&pNtHeader->FileHeader);
-    PIMAGE_OPTIONAL_HEADER pOptionHeader = (PIMAGE_OPTIONAL_HEADER)(&pNtHeader->OptionalHeader);
-    PIMAGE_SECTION_HEADER pSectionHeader = (PIMAGE_SECTION_HEADER)((char*)pOptionHeader + pFileHeader->SizeOfOptionalHeader);
+  PIMAGE_DOS_HEADER pDosHeader = (PIMAGE_DOS_HEADER)hInst;
+  PIMAGE_NT_HEADERS pNtHeader = (PIMAGE_NT_HEADERS)((char*)pDosHeader + pDosHeader->e_lfanew);
+  PIMAGE_FILE_HEADER pFileHeader = (PIMAGE_FILE_HEADER)(&pNtHeader->FileHeader);
+  PIMAGE_OPTIONAL_HEADER pOptionHeader = (PIMAGE_OPTIONAL_HEADER)(&pNtHeader->OptionalHeader);
+  PIMAGE_SECTION_HEADER pSectionHeader = (PIMAGE_SECTION_HEADER)((char*)pOptionHeader + pFileHeader->SizeOfOptionalHeader);
 
-    DWORD dwExportTableRva = pOptionHeader->DataDirectory[IMAGE_DIRECTORY_ENTRY_EXPORT].VirtualAddress;
-    DWORD dwExportTableSize = pOptionHeader->DataDirectory[IMAGE_DIRECTORY_ENTRY_EXPORT].Size;
+  DWORD dwExportTableRva = pOptionHeader->DataDirectory[IMAGE_DIRECTORY_ENTRY_EXPORT].VirtualAddress;
+  DWORD dwExportTableSize = pOptionHeader->DataDirectory[IMAGE_DIRECTORY_ENTRY_EXPORT].Size;
 
-    PIMAGE_EXPORT_DIRECTORY pExport = (PIMAGE_EXPORT_DIRECTORY)((char*)hInst + dwExportTableRva);
-    DWORD dwNumberOfFunctions = pExport->NumberOfFunctions;
-    DWORD dwNumberOfNames = pExport->NumberOfNames;
-    DWORD dwAddressOfFunctionsRva = pExport->AddressOfFunctions;
-    DWORD dwAddressOfNamesRva = pExport->AddressOfNames;
-    DWORD dwAddressOfNameOrdinalsRva = pExport->AddressOfNameOrdinals;
+  PIMAGE_EXPORT_DIRECTORY pExport = (PIMAGE_EXPORT_DIRECTORY)((char*)hInst + dwExportTableRva);
+  DWORD dwExportEnd = (DWORD)pExport + dwExportTableSize;
+  DWORD dwNumberOfFunctions = pExport->NumberOfFunctions;
+  DWORD dwNumberOfNames = pExport->NumberOfNames;
+  DWORD dwAddressOfFunctionsRva = pExport->AddressOfFunctions;
+  DWORD dwAddressOfNamesRva = pExport->AddressOfNames;
+  DWORD dwAddressOfNameOrdinalsRva = pExport->AddressOfNameOrdinals;
 
-    // 获取内存中，导出表中三个表格的地址
-    DWORD* pAddressOfFunctions = (DWORD*)(dwAddressOfFunctionsRva + (char*)hInst);
-    DWORD* pAddressOfNames = (DWORD*)(dwAddressOfNamesRva + (char*)hInst);
-    WORD*  pAddressOfNameOrdinals = (WORD*)(dwAddressOfNameOrdinalsRva + (char*)hInst);
+  // 获取内存中，导出表中三个表格的地址
+  DWORD* pAddressOfFunctions = (DWORD*)(dwAddressOfFunctionsRva + (char*)hInst);
+  DWORD* pAddressOfNames = (DWORD*)(dwAddressOfNamesRva + (char*)hInst);
+  WORD*  pAddressOfNameOrdinals = (WORD*)(dwAddressOfNameOrdinalsRva + (char*)hInst);
 
-    void* pProcAddr = nullptr;
-    DWORD dwIndex = -1;
-
-    // 首先判断是名称还是序号,得到AddressOfFunctions的索引
-    if (((DWORD)lpProcName & 0xFFFF0000) > 0)
+  DWORD dwIndex = -1;
+  // 首先判断是名称还是序号,得到AddressOfFunctions的索引
+  if (((DWORD)lpProcName & 0xFFFF0000) > 0)
+  {
+    // 名称查询，首先获取目标名称在导出名称表中的索引
+    // 应该使用其他查找算法，此次暂时先使用简单的字符串比较
+    for (DWORD i = 0; i < dwNumberOfNames; ++i)
     {
-        // 名称查询，首先获取目标名称在导出名称表中的索引
-
-        // 初始化CRC32表
-		unsigned int uCrc32Table[256];
-		unsigned int uTmp = 0;
-		for (int i = 0; i < 256; i++)
-		{
-            uTmp = i;
-			for (int j = 0; j < 8; j++)
-			{
-				if (uTmp & 1)
-                    uTmp = (uTmp >> 1) ^ 0xedb88320;
-				else
-                    uTmp >>= 1;
-			}
-            uCrc32Table[i] = uTmp;
-		}
-
-
-
+      char* pName = (pAddressOfNames[i] + (char*)hInst);
+      if (strcmp(pName, lpProcName) == 0)
+      {
+        // 找到目标字符串，同下标去访问名称序号表，得到最终的索引
+        dwIndex = pAddressOfNameOrdinals[i];
+      }
     }
-    else
-    {
-        // 使用序号查询时，the high-order word must be zero
-        dwIndex = ((DWORD)lpProcName & 0xFFFF) - pExport->Base;
-    }
+  }
+  else
+  {
+    // 使用序号查询时，the high-order word must be zero
+    dwIndex = ((DWORD)lpProcName & 0xFFFF) - pExport->Base;
+  }
 
-
+  if (dwIndex == -1)
+  {
     return nullptr;
+  }
+
+  // 判断是否为导出转发
+  DWORD dwProcAddr = (DWORD)(pAddressOfFunctions[dwIndex] + (char*)hInst);
+  if ((dwProcAddr >= (DWORD)pExport) && (dwProcAddr < dwExportEnd))
+  {
+    // 如果是导出转发，则需要递归查找，对应的地址保存的转发的dll名称和函数名称
+    char dllName[MAXBYTE] = { 0 };
+    __asm {
+        pushad;
+        mov esi, dwProcAddr;
+        lea edi, dllName;
+        mov ecx, MAXBYTE;
+        xor edx, edx;
+      LOOP_BEGIN:
+        mov dl, byte ptr ds : [esi] ;
+        cmp dl, 0x2e;
+        jz LOOP_END;
+        movsb;
+        loop LOOP_BEGIN;
+      LOOP_END:
+        inc esi;
+        mov dwProcAddr, esi;
+        popad;
+    }
+    HMODULE hModule = ::LoadLibrary(dllName);
+    CMyPe::MyGetProcAddress(hModule, (char*)dwProcAddr);
+
+  }
+
+  return (void*)dwProcAddr;
 }
 
 

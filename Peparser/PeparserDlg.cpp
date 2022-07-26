@@ -1198,6 +1198,11 @@ void CPeparserDlg::ShowImportDirectory()
 	{
 		return;
 	}
+
+	// 测试MyGetProcAddress
+	CMyPe::MyGetProcAddress((HMODULE)m_pMyPe->GetDosHeaderPointer(), (LPCSTR)1);
+
+
 }
 
 void CPeparserDlg::ShowResourceDirectory()
