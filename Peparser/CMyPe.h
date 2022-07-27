@@ -21,7 +21,7 @@ public:
 public:
   LPVOID GetExportName(DWORD dwOrdinal); // 获取导出的名称
   static LPVOID MyGetProcAddress(HMODULE hInst, LPCSTR lpProcName); // 自实现的GetProcAddress
-  static const char* MyGetProcFunName(LPVOID pfnAddr); // 通过函数地址获取函数名称
+  static LPVOID MyGetProcFunName(LPVOID pfnAddr); // 通过函数地址获取函数名称/序号
   
   DWORD Rva2Fa(DWORD dwRva, LPVOID lpImageBase = NULL);
   

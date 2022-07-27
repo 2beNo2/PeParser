@@ -379,7 +379,7 @@ LPVOID CMyPe::MyGetProcAddress(HMODULE hInst, LPCSTR lpProcName)
   return (void*)dwProcAddr;
 }
 
-const char* CMyPe::MyGetProcFunName(LPVOID pfnAddr)
+LPVOID CMyPe::MyGetProcFunName(LPVOID pfnAddr)
 {
   /*
   模块信息表{
@@ -405,9 +405,9 @@ const char* CMyPe::MyGetProcFunName(LPVOID pfnAddr)
     int n2;    //0xC
     int n3;    //0x10
     int n4;    //0x14
-    void* hInstance;      //0x18
-    void* pEntryPoint;    //0x1C
-    int nSizeOfImage;     //0x20
+    HMODULE hInstance;      //0x18
+    void* pEntryPoint;      //0x1C
+    int nSizeOfImage;       //0x20
 
     short sLengthOfPath;    //0x24
     short sSizeOfPath;      //0x26
@@ -418,31 +418,72 @@ const char* CMyPe::MyGetProcFunName(LPVOID pfnAddr)
     int* pUnicodeFileName;  //0x30
   };
 
-  HMODULE hMainModule = NULL;
-  PVOID lpCurNode = NULL;
-  PVOID lpPrevNode = NULL;
-  PVOID lpNextNode = NULL;
+  _LIST_ENTRY* pCurNode = NULL;
+  _LIST_ENTRY* pPrevNode = NULL;
+  _LIST_ENTRY* pNextNode = NULL;
 
   __asm {
     pushad;
-    mov eax, fs: [0x18] ;  //teb
-    mov eax, [eax + 0x30]; //peb
-    mov eax, [eax + 0x0c]; //_PEB_LDR_DATA
-    mov eax, [eax + 0x0c]; //模块信息表_LIST_ENTRY,主模块
-    mov lpCurNode, eax;
-
+    mov eax, fs: [0x18] ;   //teb
+    mov eax, [eax + 0x30];  //peb
+    mov eax, [eax + 0x0c];  //_PEB_LDR_DATA
+    mov eax, [eax + 0x0c];  //模块信息表_LIST_ENTRY,主模块
+    mov pCurNode, eax;
     mov ebx, dword ptr [eax];
-    mov lpPrevNode, ebx;
+    mov pPrevNode, ebx;
     mov ebx, dword ptr[eax + 0x4];
-    mov lpNextNode, ebx;
-
-    mov eax, dword ptr[eax + 0x18]; // 主模块基址
-    mov hMainModule, eax
+    mov pNextNode, ebx;
     popad;
   }
   
+  if (pCurNode == NULL || pPrevNode == NULL || pNextNode == NULL)
+  {
+    return NULL;
+  }
 
-  return nullptr;
+  HMODULE hModule = NULL;
+  _LIST_ENTRY* pTmp = NULL;
+  int nSizeOfImage = 0;
+  while (pCurNode != pPrevNode)
+  {
+    hModule = pCurNode->hInstance;
+    nSizeOfImage = pCurNode->nSizeOfImage;
+    if (((DWORD)pfnAddr > (DWORD)hModule) &&
+      ((DWORD)pfnAddr < (DWORD)hModule + nSizeOfImage))
+    {
+      // 找到函数地址所在的模块，导出表解析
+      PIMAGE_DOS_HEADER pDosHeader = (PIMAGE_DOS_HEADER)hModule;
+      PIMAGE_NT_HEADERS pNtHeader = (PIMAGE_NT_HEADERS)((char*)pDosHeader + pDosHeader->e_lfanew);
+      PIMAGE_FILE_HEADER pFileHeader = (PIMAGE_FILE_HEADER)(&pNtHeader->FileHeader);
+      PIMAGE_OPTIONAL_HEADER pOptionHeader = (PIMAGE_OPTIONAL_HEADER)(&pNtHeader->OptionalHeader);
+      PIMAGE_SECTION_HEADER pSectionHeader = (PIMAGE_SECTION_HEADER)((char*)pOptionHeader + pFileHeader->SizeOfOptionalHeader);
+
+      DWORD dwExportTableRva = pOptionHeader->DataDirectory[IMAGE_DIRECTORY_ENTRY_EXPORT].VirtualAddress;
+      DWORD dwExportTableSize = pOptionHeader->DataDirectory[IMAGE_DIRECTORY_ENTRY_EXPORT].Size;
+
+      PIMAGE_EXPORT_DIRECTORY pExport = (PIMAGE_EXPORT_DIRECTORY)((char*)hModule + dwExportTableRva);
+      DWORD dwNumberOfFunctions = pExport->NumberOfFunctions;
+      //DWORD dwNumberOfNames = pExport->NumberOfNames;
+      DWORD dwAddressOfFunctionsRva = pExport->AddressOfFunctions;
+      //DWORD dwAddressOfNamesRva = pExport->AddressOfNames;
+      //DWORD dwAddressOfNameOrdinalsRva = pExport->AddressOfNameOrdinals;
+
+      // 获取内存中，导出表中三个表格的地址
+      DWORD* pAddressOfFunctions = (DWORD*)(dwAddressOfFunctionsRva + (char*)hModule);
+      //DWORD* pAddressOfNames = (DWORD*)(dwAddressOfNamesRva + (char*)hModule);
+      //WORD*  pAddressOfNameOrdinals = (WORD*)(dwAddressOfNameOrdinalsRva + (char*)hModule);
+
+
+
+      return NULL;
+    }
+
+    pTmp = pPrevNode;
+    pCurNode = pTmp;
+    pPrevNode = pTmp->Flink;
+    pNextNode = pTmp->Blink;
+  }
+  return NULL;
 }
 
 DWORD CMyPe::Rva2Fa(DWORD dwRva, LPVOID lpImageBase)

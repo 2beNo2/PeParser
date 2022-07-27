@@ -1150,7 +1150,7 @@ void CPeparserDlg::ShowExportDirectory()
 	HMODULE hInst = ::LoadLibrary("kernel32.dll");
 	void* pfn = CMyPe::MyGetProcAddress(hInst, (LPCSTR)4);
 	CString csRet;
-	csRet.Format("%08X", pfn);
+	csRet.Format("%p", pfn);
 	AfxMessageBox(csRet);
 
 	// 测试MyGetProcFunName
