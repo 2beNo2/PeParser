@@ -310,13 +310,11 @@ LPVOID CMyPe::MyGetProcAddress(HMODULE hInst, LPCSTR lpProcName)
 
   PIMAGE_EXPORT_DIRECTORY pExport = (PIMAGE_EXPORT_DIRECTORY)((char*)hInst + dwExportTableRva);
   DWORD dwExportEnd = (DWORD)pExport + dwExportTableSize;
-  DWORD dwNumberOfFunctions = pExport->NumberOfFunctions;
-  DWORD dwNumberOfNames = pExport->NumberOfNames;
+  
+  // 获取内存中，导出表中三个表格的地址
   DWORD dwAddressOfFunctionsRva = pExport->AddressOfFunctions;
   DWORD dwAddressOfNamesRva = pExport->AddressOfNames;
   DWORD dwAddressOfNameOrdinalsRva = pExport->AddressOfNameOrdinals;
-
-  // 获取内存中，导出表中三个表格的地址
   DWORD* pAddressOfFunctions = (DWORD*)(dwAddressOfFunctionsRva + (char*)hInst);
   DWORD* pAddressOfNames = (DWORD*)(dwAddressOfNamesRva + (char*)hInst);
   WORD*  pAddressOfNameOrdinals = (WORD*)(dwAddressOfNameOrdinalsRva + (char*)hInst);
@@ -327,7 +325,7 @@ LPVOID CMyPe::MyGetProcAddress(HMODULE hInst, LPCSTR lpProcName)
   {
     // 名称查询，首先获取目标名称在导出名称表中的索引
     // 应该使用其他查找算法，此次暂时先使用简单的字符串比较
-    for (DWORD i = 0; i < dwNumberOfNames; ++i)
+    for (DWORD i = 0; i < pExport->NumberOfNames; ++i)
     {
       char* pName = (pAddressOfNames[i] + (char*)hInst);
       if (strcmp(pName, lpProcName) == 0)
@@ -371,7 +369,7 @@ LPVOID CMyPe::MyGetProcAddress(HMODULE hInst, LPCSTR lpProcName)
         mov dwProcAddr, esi;
         popad;
     }
-    HMODULE hModule = ::LoadLibrary(dllName);
+    HMODULE hModule = ::LoadLibrary(dllName);  // 此处可优化为不使用API
     return CMyPe::MyGetProcAddress(hModule, (char*)dwProcAddr);
 
   }
@@ -449,33 +447,48 @@ LPVOID CMyPe::MyGetProcFunName(LPVOID pfnAddr)
     hModule = pCurNode->hInstance;
     nSizeOfImage = pCurNode->nSizeOfImage;
     if (((DWORD)pfnAddr > (DWORD)hModule) &&
-      ((DWORD)pfnAddr < (DWORD)hModule + nSizeOfImage))
+       ((DWORD)pfnAddr < (DWORD)hModule + nSizeOfImage))
     {
-      // 找到函数地址所在的模块，导出表解析
+      // 找到函数地址所在的模块，再进行导出表解析
       PIMAGE_DOS_HEADER pDosHeader = (PIMAGE_DOS_HEADER)hModule;
       PIMAGE_NT_HEADERS pNtHeader = (PIMAGE_NT_HEADERS)((char*)pDosHeader + pDosHeader->e_lfanew);
       PIMAGE_FILE_HEADER pFileHeader = (PIMAGE_FILE_HEADER)(&pNtHeader->FileHeader);
       PIMAGE_OPTIONAL_HEADER pOptionHeader = (PIMAGE_OPTIONAL_HEADER)(&pNtHeader->OptionalHeader);
-      PIMAGE_SECTION_HEADER pSectionHeader = (PIMAGE_SECTION_HEADER)((char*)pOptionHeader + pFileHeader->SizeOfOptionalHeader);
 
-      DWORD dwExportTableRva = pOptionHeader->DataDirectory[IMAGE_DIRECTORY_ENTRY_EXPORT].VirtualAddress;
-      DWORD dwExportTableSize = pOptionHeader->DataDirectory[IMAGE_DIRECTORY_ENTRY_EXPORT].Size;
-
+      DWORD dwExportTableRva  = pOptionHeader->DataDirectory[IMAGE_DIRECTORY_ENTRY_EXPORT].VirtualAddress;
       PIMAGE_EXPORT_DIRECTORY pExport = (PIMAGE_EXPORT_DIRECTORY)((char*)hModule + dwExportTableRva);
-      DWORD dwNumberOfFunctions = pExport->NumberOfFunctions;
-      //DWORD dwNumberOfNames = pExport->NumberOfNames;
-      DWORD dwAddressOfFunctionsRva = pExport->AddressOfFunctions;
-      //DWORD dwAddressOfNamesRva = pExport->AddressOfNames;
-      //DWORD dwAddressOfNameOrdinalsRva = pExport->AddressOfNameOrdinals;
 
       // 获取内存中，导出表中三个表格的地址
+      DWORD dwAddressOfFunctionsRva = pExport->AddressOfFunctions;
+      DWORD dwAddressOfNamesRva = pExport->AddressOfNames;
+      DWORD dwAddressOfNameOrdinalsRva = pExport->AddressOfNameOrdinals;
       DWORD* pAddressOfFunctions = (DWORD*)(dwAddressOfFunctionsRva + (char*)hModule);
-      //DWORD* pAddressOfNames = (DWORD*)(dwAddressOfNamesRva + (char*)hModule);
-      //WORD*  pAddressOfNameOrdinals = (WORD*)(dwAddressOfNameOrdinalsRva + (char*)hModule);
+      DWORD* pAddressOfNames = (DWORD*)(dwAddressOfNamesRva + (char*)hModule);
+      WORD*  pAddressOfNameOrdinals = (WORD*)(dwAddressOfNameOrdinalsRva + (char*)hModule);
+
+      // 首先获取函数地址在导出地址表中的索引
+      DWORD dwIndex = -1;
+      for (DWORD i = 0; i < pExport->NumberOfFunctions; ++i)
+      {
+        if ((pAddressOfFunctions[i] + (char*)hModule) == pfnAddr)
+        {
+          dwIndex = i;
+          break;
+        }
+      }
+      if (dwIndex == -1) return NULL;
+
+      // 查找索引在名称序号表中是否存在，存在则表示是名称导出，否则是序号导出
+      for (DWORD i = 0; i < pExport->NumberOfNames; ++i)
+      {
+        if (pAddressOfNameOrdinals[i] == dwIndex)
+        {
+          return pAddressOfNames[i] + (char*)hModule;
+        }
+      }
 
 
-
-      return NULL;
+      return (LPVOID)(dwIndex + pExport->Base);
     }
 
     pTmp = pPrevNode;

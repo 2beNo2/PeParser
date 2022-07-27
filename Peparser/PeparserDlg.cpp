@@ -1148,13 +1148,26 @@ void CPeparserDlg::ShowExportDirectory()
 
 	// 测试MyGetProcAddress
 	HMODULE hInst = ::LoadLibrary("kernel32.dll");
-	void* pfn = CMyPe::MyGetProcAddress(hInst, (LPCSTR)4);
+	void* pfn = CMyPe::MyGetProcAddress(hInst, (LPCSTR)5);
 	CString csRet;
 	csRet.Format("%p", pfn);
 	AfxMessageBox(csRet);
 
 	// 测试MyGetProcFunName
-	CMyPe::MyGetProcFunName(pfn);
+	LPVOID lpRet = CMyPe::MyGetProcFunName(pfn);
+	if (((DWORD)lpRet & 0xffff0000) > 0)
+	{
+		// 名称导出
+		csRet.Format("%s", lpRet);
+		AfxMessageBox(csRet);
+	}
+	else
+	{
+		// 序号导出
+		csRet.Format("%p", lpRet);
+		AfxMessageBox(csRet);
+	}
+
 }
 
 void CPeparserDlg::ShowImportDirectory()

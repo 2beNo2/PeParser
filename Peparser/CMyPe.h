@@ -19,16 +19,18 @@ public:
   static int IsPeFile(const char* strFilePath);
 
 public:
-  LPVOID GetExportName(DWORD dwOrdinal); // 获取导出的名称
+  DWORD Rva2Fa(DWORD dwRva, LPVOID lpImageBase = NULL);
+
+  // 导出表的使用
   static LPVOID MyGetProcAddress(HMODULE hInst, LPCSTR lpProcName); // 自实现的GetProcAddress
   static LPVOID MyGetProcFunName(LPVOID pfnAddr); // 通过函数地址获取函数名称/序号
   
-  DWORD Rva2Fa(DWORD dwRva, LPVOID lpImageBase = NULL);
   
 private:
   void Init();
   void InitPeFormat(void* pFileBuff);
   void InitPeFormat(const char* strFilePath);
+  LPVOID GetExportName(DWORD dwOrdinal); // 通过序号来获取导出的名称
 
 private:
   HANDLE m_hFile;
