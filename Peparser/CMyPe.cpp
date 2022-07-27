@@ -271,7 +271,7 @@ void CMyPe::InitPeFormat(const char* strFilePath)
 }
 
 
-LPVOID CMyPe::GetExportName(DWORD dwOrdinal)
+PVOID CMyPe::GetExportName(DWORD dwOrdinal)
 {
   DWORD dwNumberOfNames = m_pExportDirectory->NumberOfNames;
   if(dwNumberOfNames == 0)
@@ -297,7 +297,7 @@ LPVOID CMyPe::GetExportName(DWORD dwOrdinal)
 }
 
 
-void* CMyPe::MyGetProcAddress(HMODULE hInst, LPCSTR lpProcName)
+LPVOID CMyPe::MyGetProcAddress(HMODULE hInst, LPCSTR lpProcName)
 {
   PIMAGE_DOS_HEADER pDosHeader = (PIMAGE_DOS_HEADER)hInst;
   PIMAGE_NT_HEADERS pNtHeader = (PIMAGE_NT_HEADERS)((char*)pDosHeader + pDosHeader->e_lfanew);
@@ -379,10 +379,70 @@ void* CMyPe::MyGetProcAddress(HMODULE hInst, LPCSTR lpProcName)
   return (void*)dwProcAddr;
 }
 
-
-const char* CMyPe::GetProcFunName(void* pfnAddr)
+const char* CMyPe::MyGetProcFunName(LPVOID pfnAddr)
 {
-    return nullptr;
+  /*
+  模块信息表{
+    +0  //前一个表的地址
+    +4  //后一个表的地址
+    +18 //当前模块的基址 hInstance
+    +1C //模块的入口点
+    +20 //SizeOfImage
+    +24 //Rtl格式的unicode字符串，保存了模块的路径
+  	    {
+    	    +0 //字符串实际长度
+          +2 //字符串所占的空间大小
+          +4 //unicode字符串的地址
+  	    }
+    +2C //Rtl格式的unicode字符串，保存了模块的名称
+  }
+  */
+  struct _LIST_ENTRY
+  {
+    struct _LIST_ENTRY* Flink;  //0x0
+    struct _LIST_ENTRY* Blink;  //0x4
+    int n1;    //0x8
+    int n2;    //0xC
+    int n3;    //0x10
+    int n4;    //0x14
+    void* hInstance;      //0x18
+    void* pEntryPoint;    //0x1C
+    int nSizeOfImage;     //0x20
+
+    short sLengthOfPath;    //0x24
+    short sSizeOfPath;      //0x26
+    int* pUnicodePathName;  //0x28
+
+    short sLengthOfFile;    //0x2C
+    short sSizeOfFile;      //0x2E
+    int* pUnicodeFileName;  //0x30
+  };
+
+  HMODULE hMainModule = NULL;
+  PVOID lpCurNode = NULL;
+  PVOID lpPrevNode = NULL;
+  PVOID lpNextNode = NULL;
+
+  __asm {
+    pushad;
+    mov eax, fs: [0x18] ;  //teb
+    mov eax, [eax + 0x30]; //peb
+    mov eax, [eax + 0x0c]; //_PEB_LDR_DATA
+    mov eax, [eax + 0x0c]; //模块信息表_LIST_ENTRY,主模块
+    mov lpCurNode, eax;
+
+    mov ebx, dword ptr [eax];
+    mov lpPrevNode, ebx;
+    mov ebx, dword ptr[eax + 0x4];
+    mov lpNextNode, ebx;
+
+    mov eax, dword ptr[eax + 0x18]; // 主模块基址
+    mov hMainModule, eax
+    popad;
+  }
+  
+
+  return nullptr;
 }
 
 DWORD CMyPe::Rva2Fa(DWORD dwRva, LPVOID lpImageBase)
