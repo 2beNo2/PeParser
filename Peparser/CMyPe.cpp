@@ -279,11 +279,11 @@ LPVOID CMyPe::GetExportName(DWORD dwOrdinal)
     return nullptr;
   }
 
-	DWORD dwAddressOfNames = m_pExportDirectory->AddressOfNames;
-	DWORD* pAddressOfNames = (DWORD*)(Rva2Fa(dwAddressOfNames) + (char*)m_lpFileBuff);
+  DWORD dwAddressOfNames = m_pExportDirectory->AddressOfNames;
+  DWORD* pAddressOfNames = (DWORD*)(Rva2Fa(dwAddressOfNames) + (char*)m_lpFileBuff);
 
-	DWORD dwAddressOfNameOrdinals = m_pExportDirectory->AddressOfNameOrdinals;
-	WORD* pAddressOfNameOrdinals = (WORD*)(Rva2Fa(dwAddressOfNameOrdinals) + (char*)m_lpFileBuff);
+  DWORD dwAddressOfNameOrdinals = m_pExportDirectory->AddressOfNameOrdinals;
+  WORD* pAddressOfNameOrdinals = (WORD*)(Rva2Fa(dwAddressOfNameOrdinals) + (char*)m_lpFileBuff);
 
   for(DWORD i = 0; i < dwNumberOfNames; ++i)
   {
@@ -372,7 +372,7 @@ void* CMyPe::MyGetProcAddress(HMODULE hInst, LPCSTR lpProcName)
         popad;
     }
     HMODULE hModule = ::LoadLibrary(dllName);
-    CMyPe::MyGetProcAddress(hModule, (char*)dwProcAddr);
+    return CMyPe::MyGetProcAddress(hModule, (char*)dwProcAddr);
 
   }
 

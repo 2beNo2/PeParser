@@ -1200,7 +1200,8 @@ void CPeparserDlg::ShowImportDirectory()
 	}
 
 	// 测试MyGetProcAddress
-	CMyPe::MyGetProcAddress((HMODULE)m_pMyPe->GetDosHeaderPointer(), (LPCSTR)1);
+	HMODULE hInst = ::LoadLibrary("kernel32.dll");
+	void* pfn = CMyPe::MyGetProcAddress(hInst, (LPCSTR)4);
 
 
 }
