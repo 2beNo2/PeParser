@@ -5,6 +5,10 @@
 #pragma once
 #include "CMyPe.h"
 
+#define LST_DOUBLEA 0x300
+#define LST_DOUBLEB 0x301
+
+
 // CPeparserDlg 对话框
 class CPeparserDlg : public CDialogEx
 {
@@ -64,7 +68,7 @@ private:
 	// PE解析
 	CString m_csFileName;
 	CString m_csFilePath;
-	CMyPe* m_pMyPe;
+	CMyPe*  m_pMyPe;
 	void InitHeapData();
 	void FinitHeapData();
 
@@ -73,5 +77,5 @@ public:
 	afx_msg void OnOpenfile();
 	afx_msg void OnClose();
 	afx_msg void OnSelchangedTreePe(NMHDR* pNMHDR, LRESULT* pResult);
-
+	afx_msg void OnClickLstDoubleA(NMHDR* pNMHDR, LRESULT* pResult);
 };

@@ -73,6 +73,7 @@ BEGIN_MESSAGE_MAP(CPeparserDlg, CDialogEx)
 	ON_COMMAND(MN_OPENFILE, &CPeparserDlg::OnOpenfile)
 	ON_WM_CLOSE()
 	ON_NOTIFY(TVN_SELCHANGED, TREE_PE, &CPeparserDlg::OnSelchangedTreePe)
+	ON_NOTIFY(NM_CLICK, LST_DOUBLEA, &CPeparserDlg::OnClickLstDoubleA)
 END_MESSAGE_MAP()
 
 
@@ -343,7 +344,7 @@ void CPeparserDlg::InitDoubleListCtrl()
 	m_DoubleAListCtrl->Create(GetWindowLong(m_MainListCtrl.m_hWnd, GWL_STYLE),
 								doubleAListRect,
 								this,
-								0x300);
+								LST_DOUBLEA);
 	m_DoubleAListCtrl->SetExtendedStyle(
 		m_DoubleAListCtrl->GetExtendedStyle() | LVS_EX_FULLROWSELECT | LVS_EX_GRIDLINES);
 	m_DoubleAListCtrl->ShowWindow(SW_HIDE);
@@ -358,7 +359,7 @@ void CPeparserDlg::InitDoubleListCtrl()
 	m_DoubleBListCtrl->Create(GetWindowLong(m_MainListCtrl.m_hWnd, GWL_STYLE),
 								doubleBListRect,
 								this,
-								0x301);
+								LST_DOUBLEB);
 	 
 	m_DoubleBListCtrl->SetExtendedStyle(
 		m_DoubleBListCtrl->GetExtendedStyle() | LVS_EX_FULLROWSELECT | LVS_EX_GRIDLINES);
@@ -1158,7 +1159,7 @@ void CPeparserDlg::ShowExportDirectory()
 	if (((DWORD)lpRet & 0xffff0000) > 0)
 	{
 		// 名称导出
-		csRet.Format("%s", lpRet);
+		csRet.Format("%s", (char*)lpRet);
 		AfxMessageBox(csRet);
 	}
 	else
@@ -1188,32 +1189,33 @@ void CPeparserDlg::ShowImportDirectory()
 	} IMAGE_IMPORT_DESCRIPTOR;
 	typedef IMAGE_IMPORT_DESCRIPTOR UNALIGNED *PIMAGE_IMPORT_DESCRIPTOR;
 
+	`INT表`和`IAT表`都是`IMAGE_THUNK_DATA`结构的：
 	typedef struct _IMAGE_THUNK_DATA32 {
 	  union {
-		PBYTE  ForwarderString;                 //指向一个转向者字符串的RVA；
+		PBYTE  ForwarderString;                 //转发字符串的RVA；
 		PDWORD Function;                        //导入函数的地址；
 		DWORD Ordinal;                          //导入函数的序号；
 		PIMAGE_IMPORT_BY_NAME  AddressOfData;   //指向IMAGE_IMPORT_BY_NAME；
 	  } u1;
 	} IMAGE_THUNK_DATA32;
 
-	`INT表`和`IAT表`都是`IMAGE_THUNK_DATA`结构的
-
-	// IMAGE_THUNK_DATA32 在不同的状态下有不同的解释方式：
-	// 在文件状态下解释为 PIMAGE_IMPORT_BY_NAME
-	// 进程状态后是函数地址
-	// 如果是序号导入的函数，最高位应该为一，取LWORD作为序号
+	IMAGE_THUNK_DATA32 在不同的状态下有不同的解释方式：
+	在文件状态下解释为 PIMAGE_IMPORT_BY_NAME
+	进程状态后是函数地址
+	如果是序号导入的函数，最高位应该为一，取LWORD作为序号
 
 	typedef struct _IMAGE_IMPORT_BY_NAME {
 	  WORD Hint;     // 编译器添加的当前电脑中对应函数的序号
 	  BYTE Name[1];  // 字符串
 	} IMAGE_IMPORT_BY_NAME, *PIMAGE_IMPORT_BY_NAME;
-
 	*/
-	m_DoubleAListCtrl->InsertColumn(0, TEXT("Member"), LVCFMT_LEFT, 150);
-	m_DoubleAListCtrl->InsertColumn(1, TEXT("Offset"), LVCFMT_LEFT, 120);
-	m_DoubleAListCtrl->InsertColumn(2, TEXT("Size"), LVCFMT_LEFT, 120);
-	m_DoubleAListCtrl->InsertColumn(3, TEXT("Value"), LVCFMT_LEFT, 120);
+
+	m_DoubleAListCtrl->InsertColumn(0, TEXT("Module Name"), LVCFMT_LEFT, 150);
+	m_DoubleAListCtrl->InsertColumn(1, TEXT("OriginalFirstThunk Rva"), LVCFMT_LEFT, 150);
+	m_DoubleAListCtrl->InsertColumn(2, TEXT("TimeDateStamp"), LVCFMT_LEFT, 120);
+	m_DoubleAListCtrl->InsertColumn(3, TEXT("ForwarderChain"), LVCFMT_LEFT, 120);
+	m_DoubleAListCtrl->InsertColumn(4, TEXT("Name Rva"), LVCFMT_LEFT, 120);
+	m_DoubleAListCtrl->InsertColumn(5, TEXT("FirstThunk Rva"), LVCFMT_LEFT, 150);
 
 	PIMAGE_IMPORT_DESCRIPTOR pImport = (PIMAGE_IMPORT_DESCRIPTOR)m_pMyPe->GetImportDirectoryPointer();
 	if (pImport == NULL)
@@ -1221,9 +1223,29 @@ void CPeparserDlg::ShowImportDirectory()
 		return;
 	}
 
+	LPVOID lpBase = m_pMyPe->GetDosHeaderPointer();
+	int nItem = 0;
+	CString csTmp;
 
-
-
+	// 遍历导入表，导入表是全0结构代表结束
+	while (pImport->Name != NULL)
+	{
+		csTmp.Format(TEXT("%s"), (m_pMyPe->Rva2Fa(pImport->Name) + (char*)lpBase));
+		m_DoubleAListCtrl->InsertItem(nItem, csTmp);
+		csTmp.Format(TEXT("%08X"), pImport->OriginalFirstThunk);
+		m_DoubleAListCtrl->SetItemText(nItem, 1, csTmp);
+		csTmp.Format(TEXT("%08X"), pImport->TimeDateStamp);
+		m_DoubleAListCtrl->SetItemText(nItem, 2, csTmp);
+		csTmp.Format(TEXT("%08X"), pImport->ForwarderChain);
+		m_DoubleAListCtrl->SetItemText(nItem, 3, csTmp);
+		csTmp.Format(TEXT("%08X"), pImport->Name);
+		m_DoubleAListCtrl->SetItemText(nItem, 4, csTmp);
+		csTmp.Format(TEXT("%08X"), pImport->FirstThunk);
+		m_DoubleAListCtrl->SetItemText(nItem, 5, csTmp);
+		
+		nItem++;
+		pImport++;
+	}
 }
 
 void CPeparserDlg::ShowResourceDirectory()
@@ -1347,4 +1369,52 @@ void CPeparserDlg::OnSelchangedTreePe(NMHDR* pNMHDR, LRESULT* pResult)
 	{
 		ShowTlsDirectory();
 	};
+}
+
+void CPeparserDlg::OnClickLstDoubleA(NMHDR* pNMHDR, LRESULT* pResult)
+{
+	LPNMITEMACTIVATE pNMItemActivate = reinterpret_cast<LPNMITEMACTIVATE>(pNMHDR);
+	// TODO: 在此添加控件通知处理程序代码
+	*pResult = 0;
+
+	// 需要确定当前是导入表
+	HTREEITEM hTreeItem = m_TreeCtrl.GetSelectedItem();
+	CString csItemText = m_TreeCtrl.GetItemText(hTreeItem);
+	if (csItemText != TEXT("Import Directory"))
+	{
+		return;
+	}
+
+	ClearDoubleBListCtrl();
+	m_DoubleBListCtrl->InsertColumn(0, TEXT("INT Rva"), LVCFMT_LEFT, 120);
+	m_DoubleBListCtrl->InsertColumn(1, TEXT("IAT Rva"), LVCFMT_LEFT, 120);
+	m_DoubleBListCtrl->InsertColumn(2, TEXT("Hint"), LVCFMT_LEFT, 120);
+	m_DoubleBListCtrl->InsertColumn(3, TEXT("Name"), LVCFMT_LEFT, 150);
+
+	LPVOID lpBase = m_pMyPe->GetDosHeaderPointer();
+	PIMAGE_IMPORT_DESCRIPTOR pImport = (PIMAGE_IMPORT_DESCRIPTOR)m_pMyPe->GetImportDirectoryPointer();
+	int nSelect = m_DoubleAListCtrl->GetSelectionMark();
+	int* pInt = (int*)(m_pMyPe->Rva2Fa(pImport[nSelect].OriginalFirstThunk) + (char*)lpBase);
+	int* pIat = (int*)(m_pMyPe->Rva2Fa(pImport[nSelect].FirstThunk) + (char*)lpBase);
+
+	// IAT表的第一项为0时，表示无效导入表项
+	if (pIat[0] == 0) return;
+	
+	// 程序未装载时，INT和IAT中保存的内容是一样的
+  // 特殊情况，在绑定导入表中，IAT表中已经填好了函数的地址，所以遍历时使用INT更好
+	int nItem = 0;
+	CString csTmp;
+	while (pInt[nItem] != NULL)
+	{
+		csTmp.Format(TEXT("%08X"), pInt[nItem]);
+		m_DoubleBListCtrl->InsertItem(nItem, csTmp);
+		csTmp.Format(TEXT("%08X"), pIat[nItem]);
+		m_DoubleBListCtrl->SetItemText(nItem, 1, csTmp);
+		csTmp.Format(TEXT("%04X"), *(WORD*)(m_pMyPe->Rva2Fa(pInt[nItem]) + (char*)lpBase));
+		m_DoubleBListCtrl->SetItemText(nItem, 2, csTmp);
+		csTmp.Format(TEXT("%s"), (char*)(m_pMyPe->Rva2Fa(pInt[nItem]) + (char*)lpBase + 2));
+		m_DoubleBListCtrl->SetItemText(nItem, 3, csTmp);
+
+		nItem++;
+	}
 }

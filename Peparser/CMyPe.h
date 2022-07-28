@@ -21,16 +21,21 @@ public:
 public:
   DWORD Rva2Fa(DWORD dwRva, LPVOID lpImageBase = NULL);
 
-  // 导出表的使用
+  // 导出表的利用
   static LPVOID MyGetProcAddress(HMODULE hInst, LPCSTR lpProcName); // 自实现的GetProcAddress
   static LPVOID MyGetProcFunName(LPVOID pfnAddr); // 通过函数地址获取函数名称/序号
   
-  
+  // 导入表的利用
+  static void MyAddImportTableItem(LPCSTR lpDllName, LPCSTR lpProcName); // 导入表注入
+
+
+public:
+  LPVOID GetExportName(DWORD dwOrdinal); // 通过序号来获取导出的名称
+
 private:
   void Init();
   void InitPeFormat(void* pFileBuff);
   void InitPeFormat(const char* strFilePath);
-  LPVOID GetExportName(DWORD dwOrdinal); // 通过序号来获取导出的名称
 
 private:
   HANDLE m_hFile;

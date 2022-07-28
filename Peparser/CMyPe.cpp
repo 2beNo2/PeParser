@@ -486,8 +486,6 @@ LPVOID CMyPe::MyGetProcFunName(LPVOID pfnAddr)
           return pAddressOfNames[i] + (char*)hModule;
         }
       }
-
-
       return (LPVOID)(dwIndex + pExport->Base);
     }
 
@@ -497,6 +495,12 @@ LPVOID CMyPe::MyGetProcFunName(LPVOID pfnAddr)
     pNextNode = pTmp->Blink;
   }
   return NULL;
+}
+
+void CMyPe::MyAddImportTableItem(LPCSTR lpDllName, LPCSTR lpProcName)
+{
+  // 新增导入表表型，实现注入
+
 }
 
 DWORD CMyPe::Rva2Fa(DWORD dwRva, LPVOID lpImageBase)
