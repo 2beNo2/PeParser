@@ -1,7 +1,7 @@
 # Pe File Parser
 - 熟悉Pe文件结构，程序只支持32位
 - PE格式中重要的数据目录：
-  - 导出表：熟悉导出表，能自实现GetProcAddress()
+  - 导出表：熟悉导出表，能自实现GetProcAddress()、GetProcFunName()
   ```
   /*
 	typedef struct _IMAGE_EXPORT_DIRECTORY {
@@ -18,3 +18,4 @@
 	  DWORD   AddressOfNameOrdinals;  // 导出序号表，rva
 	} IMAGE_EXPORT_DIRECTORY, *PIMAGE_EXPORT_DIRECTORY;
 	*/
+  - 导入表：
