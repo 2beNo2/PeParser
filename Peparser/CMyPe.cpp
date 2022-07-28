@@ -497,12 +497,40 @@ LPVOID CMyPe::MyGetProcFunName(LPVOID pfnAddr)
   return NULL;
 }
 
-BOOL CMyPe::AddSection(LPVOID lpOldFileBuff, DWORD dwOldFileSize,
-  LPVOID lpNewFileBuff, DWORD* pNewFileSize, LPVOID lpDataBuff, DWORD dwDataSize)
+DWORD CMyPe::GetAlignSize(DWORD dwDataSize, DWORD dwAlign)
 {
-  //  
+  if (dwDataSize <= dwAlign) return dwAlign;
+  DWORD dwMod = dwDataSize % dwAlign;
+  if (dwMod == 0)
+  {
+    return dwDataSize;
+  }
+  return (dwMod + 1) * dwAlign;
+}
 
-  //
+LPVOID CMyPe::AddSection(LPVOID lpOldFileBuff, LPVOID lpDataBuff, DWORD dwDataSize)
+{
+  // PE格式解析
+  PIMAGE_DOS_HEADER pDosHeader = (PIMAGE_DOS_HEADER)lpOldFileBuff;
+  PIMAGE_NT_HEADERS pNtHeader = (PIMAGE_NT_HEADERS)((char*)pDosHeader + pDosHeader->e_lfanew);
+  PIMAGE_FILE_HEADER pFileHeader = (PIMAGE_FILE_HEADER)(&pNtHeader->FileHeader);
+  PIMAGE_OPTIONAL_HEADER pOptionHeader = (PIMAGE_OPTIONAL_HEADER)(&pNtHeader->OptionalHeader);
+
+  // 计算新增节与文件对齐值对齐后的大小，新文件的大小
+  DWORD dwAlignSize = GetAlignSize(dwDataSize, pOptionHeader->FileAlignment);
+  DWORD dwNewFileSize = pOptionHeader->SizeOfImage + dwAlignSize;
+
+  // 申请新的内存，将旧的文件内存和新增节表数据拷贝过去
+  LPVOID lpNewFileBuff = malloc(dwNewFileSize);
+  if (lpNewFileBuff == NULL)
+  {
+    return NULL;
+  }
+  memcpy(lpNewFileBuff, lpOldFileBuff, pOptionHeader->SizeOfImage);
+  memcpy(((char*)lpNewFileBuff + pOptionHeader->SizeOfImage), lpDataBuff, dwDataSize);
+
+  // 检查PE头是否有足够空间新增节表
+
 
   return 0;
 }

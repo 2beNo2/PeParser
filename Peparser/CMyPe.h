@@ -19,9 +19,8 @@ public:
   static int IsPeFile(const char* strFilePath);
 
 public:
-  // 增加一个新节
-  static BOOL AddSection(LPVOID lpOldFileBuff, DWORD dwOldFileSize,
-    LPVOID lpNewFileBuff, DWORD *pNewFileSize, LPVOID lpDataBuff, DWORD dwDataSize);
+  static DWORD  GetAlignSize(DWORD dwDataSize, DWORD dwAlign);
+  static LPVOID AddSection(LPVOID lpOldFileBuff, LPVOID lpDataBuff, DWORD dwDataSize); // 新增一个节
 
   // 导出表的利用
   static LPVOID MyGetProcFunName(LPVOID pfnAddr); // 通过函数地址获取函数名称/序号
@@ -33,7 +32,6 @@ public:
 
 public:
   DWORD Rva2Fa(DWORD dwRva, LPVOID lpImageBase = NULL);
- 
   LPVOID GetExportName(DWORD dwOrdinal); // 通过序号来获取导出的名称
 
 private:
