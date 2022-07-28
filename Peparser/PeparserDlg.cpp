@@ -342,9 +342,9 @@ void CPeparserDlg::InitDoubleListCtrl()
 	doubleAListRect.right = mainListRect.right;
 	m_DoubleAListCtrl = new CListCtrl;
 	m_DoubleAListCtrl->Create(GetWindowLong(m_MainListCtrl.m_hWnd, GWL_STYLE),
-								doubleAListRect,
-								this,
-								LST_DOUBLEA);
+														doubleAListRect,
+														this,
+														LST_DOUBLEA);
 	m_DoubleAListCtrl->SetExtendedStyle(
 		m_DoubleAListCtrl->GetExtendedStyle() | LVS_EX_FULLROWSELECT | LVS_EX_GRIDLINES);
 	m_DoubleAListCtrl->ShowWindow(SW_HIDE);
@@ -357,9 +357,9 @@ void CPeparserDlg::InitDoubleListCtrl()
 	doubleBListRect.right = mainListRect.right;
 	m_DoubleBListCtrl = new CListCtrl;
 	m_DoubleBListCtrl->Create(GetWindowLong(m_MainListCtrl.m_hWnd, GWL_STYLE),
-								doubleBListRect,
-								this,
-								LST_DOUBLEB);
+														doubleBListRect,
+														this,
+														LST_DOUBLEB);
 	 
 	m_DoubleBListCtrl->SetExtendedStyle(
 		m_DoubleBListCtrl->GetExtendedStyle() | LVS_EX_FULLROWSELECT | LVS_EX_GRIDLINES);
@@ -956,12 +956,10 @@ void CPeparserDlg::ShowSectionHeader()
 	int nItem = 0;
 	CString csTmp;
 	char szTmp[9] = { 0 };
-	//wchar_t szTmp2[32] = { 0 };
 
 	for (DWORD i = 0; i < dwSection; i++)
 	{
 		memcpy(szTmp, pSectionHeaders->Name, 8);
-		//swprintf(szTmp2, 32, L"%hs", szTmp);
 		m_MainListCtrl.InsertItem(i, szTmp);
 
 		csTmp.Format(TEXT("%08X"), pSectionHeaders->Misc.VirtualSize);
@@ -981,7 +979,6 @@ void CPeparserDlg::ShowSectionHeader()
 
 		pSectionHeaders = pSectionHeaders + 1;
 		::RtlZeroMemory(szTmp, sizeof(szTmp));
-		//::RtlZeroMemory(szTmp2, sizeof(szTmp2));
 	}
 }
 
@@ -996,8 +993,8 @@ void CPeparserDlg::ShowExportDirectory()
 	m_DoubleAListCtrl->InsertColumn(3, TEXT("Value"), LVCFMT_LEFT, 120);
 
 	m_DoubleBListCtrl->InsertColumn(0, TEXT("Ordinal"), LVCFMT_LEFT, 120);
-	m_DoubleBListCtrl->InsertColumn(1, TEXT("Function RVA"), LVCFMT_LEFT, 120);
-	m_DoubleBListCtrl->InsertColumn(2, TEXT("Name"), LVCFMT_LEFT, 160);
+	m_DoubleBListCtrl->InsertColumn(1, TEXT("Function RVA"), LVCFMT_LEFT, 150);
+	m_DoubleBListCtrl->InsertColumn(2, TEXT("Name"), LVCFMT_LEFT, 180);
 
 	PIMAGE_EXPORT_DIRECTORY pExport = (PIMAGE_EXPORT_DIRECTORY)m_pMyPe->GetExportDirectoryPointer();
 	if (pExport == NULL)
@@ -1246,6 +1243,8 @@ void CPeparserDlg::ShowResourceDirectory()
 	{
 		return;
 	}
+	
+
 }
 
 void CPeparserDlg::ShowRelocDirectory()
@@ -1372,7 +1371,7 @@ void CPeparserDlg::OnClickLstDoubleA(NMHDR* pNMHDR, LRESULT* pResult)
 	m_DoubleBListCtrl->InsertColumn(0, TEXT("INT Rva"), LVCFMT_LEFT, 120);
 	m_DoubleBListCtrl->InsertColumn(1, TEXT("IAT Rva"), LVCFMT_LEFT, 120);
 	m_DoubleBListCtrl->InsertColumn(2, TEXT("Hint"), LVCFMT_LEFT, 120);
-	m_DoubleBListCtrl->InsertColumn(3, TEXT("Name"), LVCFMT_LEFT, 150);
+	m_DoubleBListCtrl->InsertColumn(3, TEXT("Name"), LVCFMT_LEFT, 180);
 
 	LPVOID lpBase = m_pMyPe->GetDosHeaderPointer();
 	PIMAGE_IMPORT_DESCRIPTOR pImport = (PIMAGE_IMPORT_DESCRIPTOR)m_pMyPe->GetImportDirectoryPointer();

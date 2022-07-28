@@ -17,6 +17,7 @@ public:
   };
   static int IsPeFile(void* pFileBuff);
   static int IsPeFile(const char* strFilePath);
+  static int WriteMemoryToFile(void* pFileBuff, int nFileSize, const char* strFilePath);
 
 public:
   static DWORD  GetAlignSize(DWORD dwDataSize, DWORD dwAlign);
@@ -27,7 +28,7 @@ public:
   static LPVOID MyGetProcAddress(HMODULE hInst, LPCSTR lpProcName); // 自实现的GetProcAddress
   
   // 导入表的利用
-  static void MyAddImportTableItem(LPCSTR lpDllName, LPCSTR lpProcName); // 导入表注入
+  static void MyAddImportTableItem(LPVOID lpFileBuff, LPCSTR lpDllName, LPCSTR lpProcName); // 导入表注入
 
 
 public:

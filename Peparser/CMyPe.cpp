@@ -108,6 +108,11 @@ NOTPE:
   return FILE_NOTPE;
 }
 
+int CMyPe::WriteMemoryToFile(void* pFileBuff, int nFileSize, const char* strFilePath)
+{
+  return 0;
+}
+
 void CMyPe::Init()
 {
   m_lpFileBuff = NULL;
@@ -499,7 +504,8 @@ LPVOID CMyPe::MyGetProcFunName(LPVOID pfnAddr)
 
 DWORD CMyPe::GetAlignSize(DWORD dwDataSize, DWORD dwAlign)
 {
-  if (dwDataSize <= dwAlign) return dwAlign;
+  if (dwDataSize <= dwAlign) 
+    return dwAlign;
   DWORD dwMod = dwDataSize % dwAlign;
   if (dwMod == 0)
   {
@@ -516,7 +522,7 @@ LPVOID CMyPe::AddSection(LPVOID lpOldFileBuff, LPVOID lpDataBuff, DWORD dwDataSi
   PIMAGE_FILE_HEADER pFileHeader = (PIMAGE_FILE_HEADER)(&pNtHeader->FileHeader);
   PIMAGE_OPTIONAL_HEADER pOptionHeader = (PIMAGE_OPTIONAL_HEADER)(&pNtHeader->OptionalHeader);
 
-  // 计算新增节与文件对齐值对齐后的大小，新文件的大小
+  // 计算新文件的大小
   DWORD dwAlignSize = GetAlignSize(dwDataSize, pOptionHeader->FileAlignment);
   DWORD dwNewFileSize = pOptionHeader->SizeOfImage + dwAlignSize;
 
@@ -529,24 +535,42 @@ LPVOID CMyPe::AddSection(LPVOID lpOldFileBuff, LPVOID lpDataBuff, DWORD dwDataSi
   memcpy(lpNewFileBuff, lpOldFileBuff, pOptionHeader->SizeOfImage);
   memcpy(((char*)lpNewFileBuff + pOptionHeader->SizeOfImage), lpDataBuff, dwDataSize);
 
-  // 检查PE头是否有足够空间新增节表
+  // 检查PE头是否有足够空间增加节表
 
 
-  return 0;
+  return NULL;
 }
 
-void CMyPe::MyAddImportTableItem(LPCSTR lpDllName, LPCSTR lpProcName)
+void CMyPe::MyAddImportTableItem(LPVOID lpFileBuff, LPCSTR lpDllName, LPCSTR lpProcName)
 {
-  // 新增导入表表项，实现注入
-  // 首先增加一个新节
+  // PE格式解析
+  PIMAGE_DOS_HEADER pDosHeader = (PIMAGE_DOS_HEADER)lpFileBuff;
+  PIMAGE_NT_HEADERS pNtHeader = (PIMAGE_NT_HEADERS)((char*)pDosHeader + pDosHeader->e_lfanew);
+  PIMAGE_FILE_HEADER pFileHeader = (PIMAGE_FILE_HEADER)(&pNtHeader->FileHeader);
+  PIMAGE_OPTIONAL_HEADER pOptionHeader = (PIMAGE_OPTIONAL_HEADER)(&pNtHeader->OptionalHeader);
+  PIMAGE_SECTION_HEADER pSectionHeader = (PIMAGE_SECTION_HEADER)((char*)pOptionHeader + pFileHeader->SizeOfOptionalHeader);
 
-  // 将原来的导入表拷贝到新节
+  // 首先增加一个新节，同时将原来的导入表拷贝到新节
+  LPVOID lpNewFileBuff = CMyPe::AddSection(lpFileBuff,
+                              (char*)pSectionHeader, // 错误，应该是拷贝导入表而不是节表
+                              pFileHeader->NumberOfSections * 0x28);
+  if (lpNewFileBuff == NULL)
+  {
+    // 新增节表失败
+    return;
+  }
 
   // 构造好要增加的导入表表项
+  IMAGE_SECTION_HEADER NewSection = { 0 };
 
-  // 将导入表表项写到新的导入表的最后
+
+  // 将新增的导入表表项写到导入表的最后
+
+
 
   // 修改数据目录中，导入表的Rva
+
+
 }
 
 DWORD CMyPe::Rva2Fa(DWORD dwRva, LPVOID lpImageBase)
