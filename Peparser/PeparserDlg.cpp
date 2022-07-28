@@ -1127,48 +1127,30 @@ void CPeparserDlg::ShowExportDirectory()
 	DWORD dwAddressOfNameOrdinals = pExport->AddressOfNameOrdinals;
 	WORD* pAddressOfNameOrdinals = (WORD*)(m_pMyPe->Rva2Fa(dwAddressOfNameOrdinals) + (char*)m_pMyPe->GetDosHeaderPointer());
 
+	DWORD dwIndex = 0;
 	for (DWORD i = 0; i < dwNumberOfFunctions; ++i) 
 	{
-		csTmp.Format(TEXT("%d"), dwBase + i);
-		m_DoubleBListCtrl->InsertItem(i, csTmp);
+		if (pAddressOfFunctions[i] == 0)
+		{
+			continue;
+		}
+		csTmp.Format(TEXT("%08X"), dwBase + i);
+		m_DoubleBListCtrl->InsertItem(dwIndex, csTmp);
 		csTmp.Format(TEXT("%08X"), pAddressOfFunctions[i]);
-		m_DoubleBListCtrl->SetItemText(i, 1, csTmp);
+		m_DoubleBListCtrl->SetItemText(dwIndex, 1, csTmp);
 		
 		LPVOID lpName = m_pMyPe->GetExportName(i);
 		if(lpName == NULL)
 		{
-			csTmp.Format(TEXT("%s"), TEXT("NA"));
+			csTmp.Format(TEXT("%s"), TEXT("N/A"));
 		}
 		else
 		{
 			csTmp.Format(TEXT("%s"), (char*)lpName);
 		}
-
-		m_DoubleBListCtrl->SetItemText(i, 2, csTmp);
+		m_DoubleBListCtrl->SetItemText(dwIndex, 2, csTmp);
+		dwIndex++;
 	}
-
-	// 测试MyGetProcAddress
-	HMODULE hInst = ::LoadLibrary("kernel32.dll");
-	void* pfn = CMyPe::MyGetProcAddress(hInst, (LPCSTR)5);
-	CString csRet;
-	csRet.Format("%p", pfn);
-	AfxMessageBox(csRet);
-
-	// 测试MyGetProcFunName
-	LPVOID lpRet = CMyPe::MyGetProcFunName(pfn);
-	if (((DWORD)lpRet & 0xffff0000) > 0)
-	{
-		// 名称导出
-		csRet.Format("%s", (char*)lpRet);
-		AfxMessageBox(csRet);
-	}
-	else
-	{
-		// 序号导出
-		csRet.Format("%p", lpRet);
-		AfxMessageBox(csRet);
-	}
-
 }
 
 void CPeparserDlg::ShowImportDirectory()
@@ -1410,11 +1392,50 @@ void CPeparserDlg::OnClickLstDoubleA(NMHDR* pNMHDR, LRESULT* pResult)
 		m_DoubleBListCtrl->InsertItem(nItem, csTmp);
 		csTmp.Format(TEXT("%08X"), pIat[nItem]);
 		m_DoubleBListCtrl->SetItemText(nItem, 1, csTmp);
-		csTmp.Format(TEXT("%04X"), *(WORD*)(m_pMyPe->Rva2Fa(pInt[nItem]) + (char*)lpBase));
-		m_DoubleBListCtrl->SetItemText(nItem, 2, csTmp);
-		csTmp.Format(TEXT("%s"), (char*)(m_pMyPe->Rva2Fa(pInt[nItem]) + (char*)lpBase + 2));
-		m_DoubleBListCtrl->SetItemText(nItem, 3, csTmp);
 
+		// 判断是名称导出还是序号导出
+		if ((pInt[nItem] & 0x80000000) != 0)
+		{
+			// 序号导出
+			csTmp.Format(TEXT("%s"), TEXT("N/A"));
+			m_DoubleBListCtrl->SetItemText(nItem, 2, csTmp);
+			csTmp.Format(TEXT("Oridinal:%08X"), (pInt[nItem] & ~0x80000000));
+			m_DoubleBListCtrl->SetItemText(nItem, 3, csTmp);
+		}
+		else
+		{
+			// 名称导出
+			csTmp.Format(TEXT("%04X"), *(WORD*)(m_pMyPe->Rva2Fa(pInt[nItem]) + (char*)lpBase));
+			m_DoubleBListCtrl->SetItemText(nItem, 2, csTmp);
+			csTmp.Format(TEXT("%s"), (char*)(m_pMyPe->Rva2Fa(pInt[nItem]) + (char*)lpBase + 2));
+			m_DoubleBListCtrl->SetItemText(nItem, 3, csTmp);
+		}
 		nItem++;
+	}
+}
+
+
+void CPeparserDlg::TestExport()
+{
+	// 测试MyGetProcAddress
+	HMODULE hInst = ::LoadLibrary("kernel32.dll");
+	void* pfn = CMyPe::MyGetProcAddress(hInst, (LPCSTR)5);
+	CString csRet;
+	csRet.Format("%p", pfn);
+	AfxMessageBox(csRet);
+
+	// 测试MyGetProcFunName
+	LPVOID lpRet = CMyPe::MyGetProcFunName(pfn);
+	if (((DWORD)lpRet & 0xffff0000) > 0)
+	{
+		// 名称导出
+		csRet.Format("%s", (char*)lpRet);
+		AfxMessageBox(csRet);
+	}
+	else
+	{
+		// 序号导出
+		csRet.Format("%p", lpRet);
+		AfxMessageBox(csRet);
 	}
 }

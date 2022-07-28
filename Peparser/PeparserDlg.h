@@ -73,6 +73,9 @@ private:
 	void FinitHeapData();
 
 public:
+	void TestExport();
+
+public:
 	// 消息响应
 	afx_msg void OnOpenfile();
 	afx_msg void OnClose();

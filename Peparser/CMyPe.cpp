@@ -497,10 +497,28 @@ LPVOID CMyPe::MyGetProcFunName(LPVOID pfnAddr)
   return NULL;
 }
 
+BOOL CMyPe::AddSection(LPVOID lpOldFileBuff, DWORD dwOldFileSize,
+  LPVOID lpNewFileBuff, DWORD* pNewFileSize, LPVOID lpDataBuff, DWORD dwDataSize)
+{
+  //  
+
+  //
+
+  return 0;
+}
+
 void CMyPe::MyAddImportTableItem(LPCSTR lpDllName, LPCSTR lpProcName)
 {
-  // 新增导入表表型，实现注入
+  // 新增导入表表项，实现注入
+  // 首先增加一个新节
 
+  // 将原来的导入表拷贝到新节
+
+  // 构造好要增加的导入表表项
+
+  // 将导入表表项写到新的导入表的最后
+
+  // 修改数据目录中，导入表的Rva
 }
 
 DWORD CMyPe::Rva2Fa(DWORD dwRva, LPVOID lpImageBase)

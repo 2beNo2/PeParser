@@ -19,17 +19,21 @@ public:
   static int IsPeFile(const char* strFilePath);
 
 public:
-  DWORD Rva2Fa(DWORD dwRva, LPVOID lpImageBase = NULL);
+  // 增加一个新节
+  static BOOL AddSection(LPVOID lpOldFileBuff, DWORD dwOldFileSize,
+    LPVOID lpNewFileBuff, DWORD *pNewFileSize, LPVOID lpDataBuff, DWORD dwDataSize);
 
   // 导出表的利用
-  static LPVOID MyGetProcAddress(HMODULE hInst, LPCSTR lpProcName); // 自实现的GetProcAddress
   static LPVOID MyGetProcFunName(LPVOID pfnAddr); // 通过函数地址获取函数名称/序号
+  static LPVOID MyGetProcAddress(HMODULE hInst, LPCSTR lpProcName); // 自实现的GetProcAddress
   
   // 导入表的利用
   static void MyAddImportTableItem(LPCSTR lpDllName, LPCSTR lpProcName); // 导入表注入
 
 
 public:
+  DWORD Rva2Fa(DWORD dwRva, LPVOID lpImageBase = NULL);
+ 
   LPVOID GetExportName(DWORD dwOrdinal); // 通过序号来获取导出的名称
 
 private:
