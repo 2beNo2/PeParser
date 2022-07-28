@@ -1130,6 +1130,7 @@ void CPeparserDlg::ShowExportDirectory()
 	DWORD dwIndex = 0;
 	for (DWORD i = 0; i < dwNumberOfFunctions; ++i) 
 	{
+		// 序号不连续时，AddressOfFunctions中会使用0填充
 		if (pAddressOfFunctions[i] == 0)
 		{
 			continue;
