@@ -11,9 +11,11 @@ public:
 
 public:
   enum {
-    FIlE_OPENFAILD,
-    FILE_NOTPE,
-    FILE_ISPE
+    FIlE_OPEN_FAILD,
+    FIlE_WRITE_FAILD,
+    FIlE_WRITE_SUC,
+    FILE_NOT_PE,
+    FILE_IS_PE
   };
   static int IsPeFile(void* pFileBuff);
   static int IsPeFile(const char* strFilePath);
@@ -21,14 +23,14 @@ public:
 
 public:
   static DWORD  GetAlignSize(DWORD dwDataSize, DWORD dwAlign);
-  static LPVOID AddSection(LPVOID lpOldFileBuff, LPVOID lpDataBuff, DWORD dwDataSize); // 新增一个节
+  static LPVOID AddSection(LPVOID lpOldFileBuff, LPVOID lpDataBuff = NULL, DWORD dwDataSize = NULL); // 新增一个节
 
   // 导出表的利用
   static LPVOID MyGetProcFunName(LPVOID pfnAddr); // 通过函数地址获取函数名称/序号
   static LPVOID MyGetProcAddress(HMODULE hInst, LPCSTR lpProcName); // 自实现的GetProcAddress
   
   // 导入表的利用
-  static void MyAddImportTableItem(LPVOID lpFileBuff, LPCSTR lpDllName, LPCSTR lpProcName); // 导入表注入
+  static LPVOID MyAddImportTableItem(LPVOID lpFileBuff, LPCSTR lpDllName, LPCSTR lpProcName); // 导入表注入
 
 
 public:
