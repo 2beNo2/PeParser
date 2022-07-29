@@ -226,12 +226,12 @@ void CPeparserDlg::OnOpenfile()
 		int uIsPe = CMyPe::IsPeFile(m_csFilePath.GetBuffer());
 		switch (uIsPe)
 		{
-		case CMyPe::FIlE_OPENFAILD:
+		case CMyPe::FIlE_OPEN_FAILD:
 		{
 			AfxMessageBox(TEXT("文件打开失败！"));
 			return;
 		}
-		case CMyPe::FILE_NOTPE:
+		case CMyPe::FILE_NOT_PE:
 		{
 			AfxMessageBox(TEXT("文件不是PE格式！"));
 			return;
