@@ -1,7 +1,7 @@
 # Pe File Parser
 - 熟悉Pe文件结构，程序只支持32位
 - PE格式中重要的数据目录：
-  - 导出表：了解导出表，可以自己实现GetProcAddress()、GetProcFunName()等方法
+  - **导出表**：了解导出表，可以自己实现GetProcAddress()、GetProcFunName()等方法
   ```
   /*
 	typedef struct _IMAGE_EXPORT_DIRECTORY {
@@ -19,7 +19,8 @@
 	} IMAGE_EXPORT_DIRECTORY, *PIMAGE_EXPORT_DIRECTORY;
 	*/
   ```
-  - 导入表：了解导入表，加壳/脱壳都需要对导入表进行操作，可利用导入表进行注入
+  
+  - **导入表**：了解导入表，加壳/脱壳都需要对导入表进行操作，可利用导入表进行注入
   ```
   typedef struct _IMAGE_IMPORT_DESCRIPTOR {
 	    union {
@@ -54,4 +55,22 @@
 	  BYTE Name[1];  // 字符串
 	} IMAGE_IMPORT_BY_NAME, *PIMAGE_IMPORT_BY_NAME;
   ```
-  - 资源表：
+  
+  - **重定位表**：
+  ```
+  typedef struct _IMAGE_BASE_RELOCATION {
+	    DWORD   VirtualAddress;  // 页起始地址RVA，通知系统该分页上有数据需要重定位
+	    DWORD   SizeOfBlock;     // 整个数据块的大小，包含SizeOfBlock
+	//  WORD    TypeOffset[1];   // 柔性数组，保存了要修正的数据相对于页的偏移
+			             // 数组成员的高8位，决定了修复的方式，是修正4个字节还是2个字节
+				     // 高8位为0，表示无效，用来对齐
+			             // 高8位为3，表示修4字节
+			             // 高8位为0xA，表示修8字节
+	} IMAGE_BASE_RELOCATION;
+	typedef IMAGE_BASE_RELOCATION UNALIGNED * PIMAGE_BASE_RELOCATION;
+  ```
+  
+  
+  - **资源表**：
+  
+  
