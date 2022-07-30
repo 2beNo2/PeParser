@@ -86,5 +86,49 @@
   ```
   
   - **资源表**：
-  `资源目录：`目录都解释为该结构体
-  
+  	- `资源目录：`目录都解释为该结构体：
+  	```
+	typedef struct _IMAGE_RESOURCE_DIRECTORY {
+	    DWORD   Characteristics;
+	    DWORD   TimeDateStamp;
+	    WORD    MajorVersion;
+	    WORD    MinorVersion;
+	    WORD    NumberOfNamedEntries;  // 以名称命名的资源数量
+	    WORD    NumberOfIdEntries;     // 以id命名的资源数量
+	    // NumberOfNamedEntries + NumberOfIdEntries 来确定资源目录项的个数
+	} IMAGE_RESOURCE_DIRECTORY, *PIMAGE_RESOURCE_DIRECTORY;
+	```
+  	- `资源目录项：`是资源目录中的元素:
+  	```
+	typedef struct _IMAGE_RESOURCE_DIRECTORY_ENTRY {
+	    union {
+		struct {
+		    DWORD NameOffset:31;  //偏移量是按照资源节的起始来计算的
+		    DWORD NameIsString:1; //如果最高位为1，则剩下31位填写 名称字符串的偏移量
+								  //资源的字符串都是pascal字符串格式，
+									//第一个字节表字符个数，后面每2个字节保存一个字符
+								  //如果最高位为0，则LDWORD保存id号        
+								  //ID号有宏定义：RT_ICON = 3
+		};
+		DWORD   Name;　　　　　　　　　　　　　　　　　
+		WORD    Id;
+	    };
+	    union {
+		DWORD   OffsetToData;    //描述是数据还是目录
+		struct {
+		    DWORD   OffsetToDirectory:31; //偏移量是按照资源节的起始来计算的
+		    DWORD   DataIsDirectory:1;    //如果最高位为1，则为下一个目录的偏移量
+										  //如果最高位为0，则为下一个数据的偏移量
+		};
+	    };
+	} IMAGE_RESOURCE_DIRECTORY_ENTRY, *PIMAGE_RESOURCE_DIRECTORY_ENTRY;
+	```
+	- `数据：`数据都解释为该结构体:
+	```
+	typedef struct _IMAGE_RESOURCE_DATA_ENTRY {
+	    DWORD   OffsetToData;  // 数据的偏移，rva
+	    DWORD   Size;　　　　　　// 数据的大小　　　　　　　　　
+	    DWORD   CodePage;
+	    DWORD   Reserved;
+	} IMAGE_RESOURCE_DATA_ENTRY, *PIMAGE_RESOURCE_DATA_ENTRY;
+	```
