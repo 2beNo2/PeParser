@@ -1476,19 +1476,19 @@ void CPeparserDlg::OnClickLstDoubleA(NMHDR* pNMHDR, LRESULT* pResult)
 			m_DoubleBListCtrl->SetItemText(i, 1, csTmp);
 			switch (wItem[i] >> 12)
 			{
-			case 0:
+			case IMAGE_REL_BASED_ABSOLUTE:
 			{
 				csTmp.Format(TEXT("%s"), TEXT("N/A"));
 				m_DoubleBListCtrl->SetItemText(i, 2, csTmp);
 				break;
 			}
-			case 0x3:
+			case IMAGE_REL_BASED_HIGHLOW:
 			{
 				csTmp.Format(TEXT("%s"), TEXT("HIGHLOW"));
 				m_DoubleBListCtrl->SetItemText(i, 2, csTmp);
 				break;
 			}
-			case 0xa:
+			case IMAGE_REL_BASED_DIR64:
 			{
 				csTmp.Format(TEXT("%s"), TEXT("to do..."));
 				m_DoubleBListCtrl->SetItemText(i, 2, csTmp);
@@ -1502,7 +1502,6 @@ void CPeparserDlg::OnClickLstDoubleA(NMHDR* pNMHDR, LRESULT* pResult)
 
 
 }
-
 
 void CPeparserDlg::TestExport()
 {
@@ -1528,7 +1527,6 @@ void CPeparserDlg::TestExport()
 		AfxMessageBox(csRet);
 	}
 }
-
 
 void CPeparserDlg::TestImport()
 {
