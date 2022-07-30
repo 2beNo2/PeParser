@@ -1245,7 +1245,7 @@ void CPeparserDlg::ShowResourceDirectory()
 	{
 		return;
 	}
-	
+	// 没有必要遍历显示
 
 }
 
@@ -1313,6 +1313,7 @@ void CPeparserDlg::ShowTlsDirectory()
 	{
 		return;
 	}
+	// 没有必要遍历显示
 }
 
 void CPeparserDlg::OnClose()
