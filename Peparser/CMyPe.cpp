@@ -126,9 +126,11 @@ int CMyPe::WriteMemoryToFile(void* pFileBuff, int nFileSize, const char* strFile
   DWORD dwNumberOfBytesWritten = 0;
   if (!::WriteFile(hFile, pFileBuff, nFileSize, &dwNumberOfBytesWritten, NULL))
   {
+    ::CloseHandle(hFile);
     return FIlE_WRITE_FAILD;
   }
 
+  ::CloseHandle(hFile);
   return FIlE_WRITE_SUC;
 }
 
@@ -189,7 +191,7 @@ void CMyPe::InitPeFormat(void* pFileBuff)
   // 导出表
   DWORD dwExportRva = m_pOptionHeader->DataDirectory[IMAGE_DIRECTORY_ENTRY_EXPORT].VirtualAddress;
   m_dwExportSize = m_pOptionHeader->DataDirectory[IMAGE_DIRECTORY_ENTRY_EXPORT].Size;
-  DWORD dwFa = Rva2Fa(dwExportRva);
+  DWORD dwFa = Rva2Fa(dwExportRva, pFileBuff);
   if (dwFa == -1) 
   {
     m_pExportDirectory = NULL;
@@ -203,7 +205,7 @@ void CMyPe::InitPeFormat(void* pFileBuff)
   // 导入表
   DWORD dwImportRva = m_pOptionHeader->DataDirectory[IMAGE_DIRECTORY_ENTRY_IMPORT].VirtualAddress;
   m_dwImportSize = m_pOptionHeader->DataDirectory[IMAGE_DIRECTORY_ENTRY_IMPORT].Size;
-  dwFa = Rva2Fa(dwImportRva);
+  dwFa = Rva2Fa(dwImportRva, pFileBuff);
   if (dwFa == -1)
   {
     m_pImportDirectory = NULL;
@@ -215,7 +217,7 @@ void CMyPe::InitPeFormat(void* pFileBuff)
 
   // 资源表
   DWORD dwResourceRva = m_pOptionHeader->DataDirectory[IMAGE_DIRECTORY_ENTRY_RESOURCE].VirtualAddress;
-  dwFa = Rva2Fa(dwResourceRva);
+  dwFa = Rva2Fa(dwResourceRva, pFileBuff);
   if (dwFa == -1)
   {
     m_pResourceDirectory = NULL;
@@ -228,7 +230,7 @@ void CMyPe::InitPeFormat(void* pFileBuff)
   // 重定位表
   DWORD dwRelocRva = m_pOptionHeader->DataDirectory[IMAGE_DIRECTORY_ENTRY_BASERELOC].VirtualAddress;
   m_dwRelocSize = m_pOptionHeader->DataDirectory[IMAGE_DIRECTORY_ENTRY_BASERELOC].Size;
-  dwFa = Rva2Fa(dwRelocRva);
+  dwFa = Rva2Fa(dwRelocRva, pFileBuff);
   if (dwFa == -1)
   {
     m_pRelocDirectory = NULL;
@@ -240,7 +242,7 @@ void CMyPe::InitPeFormat(void* pFileBuff)
 
   // TLS表
   DWORD dwTlsRva = m_pOptionHeader->DataDirectory[IMAGE_DIRECTORY_ENTRY_TLS].VirtualAddress;
-  dwFa = Rva2Fa(dwTlsRva);
+  dwFa = Rva2Fa(dwTlsRva, pFileBuff);
   if (dwFa == -1)
   {
     m_pTlsDirectory = NULL;
@@ -303,17 +305,17 @@ PVOID CMyPe::GetExportName(DWORD dwOrdinal)
   }
 
   DWORD dwAddressOfNames = m_pExportDirectory->AddressOfNames;
-  DWORD* pAddressOfNames = (DWORD*)(Rva2Fa(dwAddressOfNames) + (char*)m_lpFileBuff);
+  DWORD* pAddressOfNames = (DWORD*)(Rva2Fa(dwAddressOfNames, m_lpFileBuff) + (char*)m_lpFileBuff);
 
   DWORD dwAddressOfNameOrdinals = m_pExportDirectory->AddressOfNameOrdinals;
-  WORD* pAddressOfNameOrdinals = (WORD*)(Rva2Fa(dwAddressOfNameOrdinals) + (char*)m_lpFileBuff);
+  WORD* pAddressOfNameOrdinals = (WORD*)(Rva2Fa(dwAddressOfNameOrdinals, m_lpFileBuff) + (char*)m_lpFileBuff);
 
   for(DWORD i = 0; i < dwNumberOfNames; ++i)
   {
     if(pAddressOfNameOrdinals[i] == dwOrdinal)
     {
       DWORD dwNameAddressRva = pAddressOfNames[i];
-      return (LPVOID)(Rva2Fa(dwNameAddressRva) + (char*)m_lpFileBuff);
+      return (LPVOID)(Rva2Fa(dwNameAddressRva, m_lpFileBuff) + (char*)m_lpFileBuff);
     }
   }
   return nullptr;
@@ -532,9 +534,10 @@ DWORD CMyPe::GetAlignSize(DWORD dwDataSize, DWORD dwAlign)
 }
 
 /*
-函数功能：新增一项节表
+函数功能：新增节表
 参数：
   lpOldFileBuff：PE文件的内存地址
+  dwOldFileSize：PE文件的原始大小
   lpDataBuff   ：新增节表的数据
   dwDataSize   ：新增节表的数据的大小
 返回值：
@@ -542,7 +545,7 @@ DWORD CMyPe::GetAlignSize(DWORD dwDataSize, DWORD dwAlign)
 注意：
   dwDataSize = 0 时，增加一个没有文件映射的节
 */
-LPVOID CMyPe::AddSection(LPVOID lpOldFileBuff, LPVOID lpDataBuff, DWORD dwDataSize)
+LPVOID CMyPe::AddSection(LPVOID lpOldFileBuff, DWORD dwOldFileSize, LPVOID lpDataBuff, DWORD dwDataSize)
 {
   // PE格式解析
   PIMAGE_DOS_HEADER pDosHeader = (PIMAGE_DOS_HEADER)lpOldFileBuff;
@@ -552,7 +555,7 @@ LPVOID CMyPe::AddSection(LPVOID lpOldFileBuff, LPVOID lpDataBuff, DWORD dwDataSi
   PIMAGE_SECTION_HEADER pSectionHeader = (PIMAGE_SECTION_HEADER)((char*)pOptionHeader + pFileHeader->SizeOfOptionalHeader);
 
   // 计算新文件的大小
-  DWORD dwNewFileSize = pOptionHeader->SizeOfImage + GetAlignSize(dwDataSize, pOptionHeader->FileAlignment);
+  DWORD dwNewFileSize = dwOldFileSize + GetAlignSize(dwDataSize, pOptionHeader->FileAlignment);
 
   // 申请新的内存，将旧的文件内存和新增节表数据拷贝过去
   LPVOID lpNewFileBuff = malloc(dwNewFileSize);
@@ -560,10 +563,12 @@ LPVOID CMyPe::AddSection(LPVOID lpOldFileBuff, LPVOID lpDataBuff, DWORD dwDataSi
   {
     return NULL;
   }
-  memcpy(lpNewFileBuff, lpOldFileBuff, pOptionHeader->SizeOfImage);
+  ZeroMemory(lpNewFileBuff, dwNewFileSize);
+
+  memcpy(lpNewFileBuff, lpOldFileBuff, dwOldFileSize);
   if (lpDataBuff != NULL) 
   {
-    memcpy(((char*)lpNewFileBuff + pOptionHeader->SizeOfImage), lpDataBuff, dwDataSize);
+    memcpy(((char*)lpNewFileBuff + dwOldFileSize), lpDataBuff, dwDataSize);
   }
  
   // 检查PE头是否有足够空间增加节表项
@@ -583,9 +588,9 @@ LPVOID CMyPe::AddSection(LPVOID lpOldFileBuff, LPVOID lpDataBuff, DWORD dwDataSi
   }
 
   // 检查新增节表项的位置，数据是否为0
-  IMAGE_SECTION_HEADER secTmp = { 0 };
+  IMAGE_SECTION_HEADER structAddSection = { 0 };
   PIMAGE_SECTION_HEADER pAddSectionHeader = pNewSectionHeader + pNewFileHeader->NumberOfSections;
-  if (memcmp(pAddSectionHeader, &secTmp, sizeof(IMAGE_SECTION_HEADER)) != NULL)
+  if (memcmp(pAddSectionHeader, &structAddSection, sizeof(IMAGE_SECTION_HEADER)) != NULL)
   {
     // 可能会覆盖数据时，也可以选择数据上移，占用DOS Stub的空间
     free(lpNewFileBuff);
@@ -593,17 +598,17 @@ LPVOID CMyPe::AddSection(LPVOID lpOldFileBuff, LPVOID lpDataBuff, DWORD dwDataSi
   }
 
   // 构造新的节表项
-  DWORD dwLastSectionHeader = pNewFileHeader->NumberOfSections - 1;
-  secTmp.Misc.VirtualSize = GetAlignSize(dwDataSize, pOptionHeader->SectionAlignment);
-  secTmp.VirtualAddress = pNewSectionHeader[dwLastSectionHeader].Misc.VirtualSize +
-                          pNewSectionHeader[dwLastSectionHeader].VirtualAddress;
+  DWORD dwLastSectionHeaderIndex = pNewFileHeader->NumberOfSections - 1;
+  structAddSection.Misc.VirtualSize = GetAlignSize(dwDataSize, pOptionHeader->SectionAlignment);
+  structAddSection.VirtualAddress = pNewSectionHeader[dwLastSectionHeaderIndex].VirtualAddress +
+    GetAlignSize(pNewSectionHeader[dwLastSectionHeaderIndex].Misc.VirtualSize, pOptionHeader->SectionAlignment);
 
-  secTmp.SizeOfRawData = GetAlignSize(dwDataSize, pOptionHeader->FileAlignment);
-  secTmp.PointerToRawData = pNewSectionHeader[dwLastSectionHeader].SizeOfRawData +
-                            pNewSectionHeader[dwLastSectionHeader].PointerToRawData;
+  structAddSection.SizeOfRawData = GetAlignSize(dwDataSize, pOptionHeader->FileAlignment);
+  structAddSection.PointerToRawData = pNewSectionHeader[dwLastSectionHeaderIndex].PointerToRawData +
+    GetAlignSize(pNewSectionHeader[dwLastSectionHeaderIndex].SizeOfRawData, pOptionHeader->FileAlignment);
 
   // 拷贝新节表项到节表末尾
-  memcpy(pAddSectionHeader, &secTmp, sizeof(IMAGE_SECTION_HEADER));
+  memcpy(pAddSectionHeader, &structAddSection, sizeof(IMAGE_SECTION_HEADER));
   
   // 修改PE中相关字段：SizeOfImage NumberOfSections
   pNewOptionHeader->SizeOfImage = pAddSectionHeader->VirtualAddress + pAddSectionHeader->Misc.VirtualSize;
@@ -621,8 +626,6 @@ LPVOID CMyPe::AddSection(LPVOID lpOldFileBuff, LPVOID lpDataBuff, DWORD dwDataSi
   lpProcName：注入的函数名称
 返回值：
   注入成功后，PE文件新的内存地址
-注意：
-
 */
 LPVOID CMyPe::MyAddImportTableItem(LPVOID lpFileBuff, LPCSTR lpDllName, LPCSTR lpProcName)
 {
@@ -633,70 +636,95 @@ LPVOID CMyPe::MyAddImportTableItem(LPVOID lpFileBuff, LPCSTR lpDllName, LPCSTR l
   PIMAGE_OPTIONAL_HEADER pOptionHeader = (PIMAGE_OPTIONAL_HEADER)(&pNtHeader->OptionalHeader);
   PIMAGE_SECTION_HEADER pSectionHeader = (PIMAGE_SECTION_HEADER)((char*)pOptionHeader + pFileHeader->SizeOfOptionalHeader);
 
-  // 首先增加一个新节，同时将原来的导入表拷贝到新节
-  LPVOID lpImport = (char*)lpFileBuff + pOptionHeader->DataDirectory[IMAGE_DIRECTORY_ENTRY_IMPORT].VirtualAddress;
-  DWORD dwImportCount = 0;
-  IMAGE_IMPORT_DESCRIPTOR imageImport = { 0 };
-  PIMAGE_IMPORT_DESCRIPTOR lpTmp = (PIMAGE_IMPORT_DESCRIPTOR)lpImport;
-  while (memcmp(lpTmp, &imageImport, sizeof(IMAGE_IMPORT_DESCRIPTOR)) !=0)
+  // 获取旧的导入表的位置和项数
+  DWORD dwImportRva = pOptionHeader->DataDirectory[IMAGE_DIRECTORY_ENTRY_IMPORT].VirtualAddress;
+  DWORD dwImportFa = CMyPe::Rva2Fa(dwImportRva, lpFileBuff);
+  LPVOID lpOldImportTable = (char*)lpFileBuff + dwImportFa;
+
+  //
+  DWORD dwOldImportCount = 0;
+  IMAGE_IMPORT_DESCRIPTOR structAddImport = { 0 };
+  PIMAGE_IMPORT_DESCRIPTOR lpTmp = (PIMAGE_IMPORT_DESCRIPTOR)lpOldImportTable;
+  while (memcmp(lpTmp, &structAddImport, sizeof(IMAGE_IMPORT_DESCRIPTOR)) !=0)
   {
-    dwImportCount++;
+    dwOldImportCount++;
     lpTmp++;
   }
-  LPVOID lpNewFileBuff = CMyPe::AddSection(lpFileBuff, lpImport, dwImportCount);
+
+  // 增加一个新节，同时将原来的导入表拷贝到新节
+  DWORD dwOldFileSize = pSectionHeader[pFileHeader->NumberOfSections - 1].SizeOfRawData +
+    pSectionHeader[pFileHeader->NumberOfSections - 1].PointerToRawData;
+  LPVOID lpNewFileBuff = CMyPe::AddSection(lpFileBuff, 
+                                            dwOldFileSize,
+                                            lpOldImportTable, 
+                                            dwOldImportCount * sizeof(IMAGE_IMPORT_DESCRIPTOR));
   if (lpNewFileBuff == NULL)
   {
     // 新增节表失败
     return NULL;
   }
 
-  // 构造好要增加的导入表表项
+  // 获取新增节表项
   PIMAGE_DOS_HEADER pNewDosHeader = (PIMAGE_DOS_HEADER)lpNewFileBuff;
   PIMAGE_NT_HEADERS pNewNtHeader = (PIMAGE_NT_HEADERS)((char*)pNewDosHeader + pNewDosHeader->e_lfanew);
   PIMAGE_FILE_HEADER pNewFileHeader = (PIMAGE_FILE_HEADER)(&pNewNtHeader->FileHeader);
   PIMAGE_OPTIONAL_HEADER pNewOptionHeader = (PIMAGE_OPTIONAL_HEADER)(&pNewNtHeader->OptionalHeader);
+  PIMAGE_SECTION_HEADER pNewSectionHeader = (PIMAGE_SECTION_HEADER)((char*)pNewOptionHeader + pNewFileHeader->SizeOfOptionalHeader);
+  PIMAGE_SECTION_HEADER pAddSectionHeader = &pNewSectionHeader[pNewFileHeader->NumberOfSections - 1];
+  DWORD dwAddSectionVirtualAddress = pAddSectionHeader->VirtualAddress;
+  DWORD dwAddSectionPointerToRawData = pAddSectionHeader->PointerToRawData;
 
-  PIMAGE_IMPORT_DESCRIPTOR pNewImportTable = (PIMAGE_IMPORT_DESCRIPTOR)((char*)pNewDosHeader + pOptionHeader->SizeOfImage);
-  PVOID pDllName = (PVOID)(pNewImportTable + dwImportCount + 1);
+  // 构造导入表需要的dll名称和ThunkData
+  PIMAGE_IMPORT_DESCRIPTOR pNewImportTable = (PIMAGE_IMPORT_DESCRIPTOR)((char*)pNewDosHeader + dwAddSectionPointerToRawData);
+
+  PIMAGE_IMPORT_DESCRIPTOR pNewImportTableItem = pNewImportTable + dwOldImportCount;
+  PVOID pDllName  = (char*)(pNewImportTableItem + 2);
   PVOID pProcName = (char*)pDllName + strlen(lpDllName) + 0x10;
   PVOID pThunkData = (char*)pProcName + strlen(lpProcName) + 0x10;
-
   memcpy(pDllName, lpDllName, strlen(lpDllName) + 1);
-  memcpy(pProcName, pProcName, strlen(lpProcName) + 1);
-  *(DWORD*)pThunkData = (DWORD)pProcName - (DWORD)lpNewFileBuff;
+  memcpy((char*)pProcName + 2, lpProcName, strlen(lpProcName) + 1);
+  *(DWORD*)pThunkData = (DWORD)pProcName - (DWORD)lpNewFileBuff - dwAddSectionPointerToRawData + dwAddSectionVirtualAddress;
 
-  IMAGE_IMPORT_DESCRIPTOR NewImport = { 0 };
-  NewImport.OriginalFirstThunk = NULL;
-  NewImport.Name = (DWORD)pDllName - (DWORD)lpNewFileBuff;
-  NewImport.FirstThunk = (DWORD)pThunkData - (DWORD)lpNewFileBuff;
+  // 构造要增加的导入表表项，注意是Rva
+  structAddImport.OriginalFirstThunk = NULL;
+  structAddImport.Name = (DWORD)pDllName - (DWORD)lpNewFileBuff - dwAddSectionPointerToRawData + dwAddSectionVirtualAddress;
+  structAddImport.FirstThunk = (DWORD)pThunkData - (DWORD)lpNewFileBuff - dwAddSectionPointerToRawData + dwAddSectionVirtualAddress;
   
   // 将新增的导入表表项写到导入表的最后
-  memcpy(pNewImportTable, &NewImport, sizeof(IMAGE_IMPORT_DESCRIPTOR));
+  memcpy(pNewImportTableItem, &structAddImport, sizeof(IMAGE_IMPORT_DESCRIPTOR));
 
   // 修改数据目录中，导入表的Rva
-  pNewOptionHeader->DataDirectory[IMAGE_DIRECTORY_ENTRY_IMPORT].VirtualAddress = pOptionHeader->SizeOfImage;
+  pNewOptionHeader->DataDirectory[IMAGE_DIRECTORY_ENTRY_IMPORT].VirtualAddress = 
+      (DWORD)pNewImportTable - (DWORD)lpNewFileBuff - dwAddSectionPointerToRawData + dwAddSectionVirtualAddress;
 
-  return lpNewFileBuff;
+  // 测试
+  CMyPe::WriteMemoryToFile(lpNewFileBuff, 
+    pAddSectionHeader->SizeOfRawData + (DWORD)pAddSectionHeader->PointerToRawData,
+    TEXT("C:\\Users\\hc\\Desktop\\test\\1.out"));
+  free(lpNewFileBuff);
+
+  return NULL;
 }
 
-DWORD CMyPe::Rva2Fa(DWORD dwRva, LPVOID lpImageBase)
+DWORD CMyPe::Rva2Fa(DWORD dwRva, LPVOID lpFileBuff)
 {
-  // 判断RVA是否有效,RVA是相对于模块基址的
-  DWORD dwImageBase = m_dwImageBase;
-  if (lpImageBase != NULL)
-  {
-    dwImageBase = (DWORD)lpImageBase;
-  }
+  // PE格式解析
+  PIMAGE_DOS_HEADER pDosHeader = (PIMAGE_DOS_HEADER)lpFileBuff;
+  PIMAGE_NT_HEADERS pNtHeader = (PIMAGE_NT_HEADERS)((char*)pDosHeader + pDosHeader->e_lfanew);
+  PIMAGE_FILE_HEADER pFileHeader = (PIMAGE_FILE_HEADER)(&pNtHeader->FileHeader);
+  PIMAGE_OPTIONAL_HEADER pOptionHeader = (PIMAGE_OPTIONAL_HEADER)(&pNtHeader->OptionalHeader);
+  PIMAGE_SECTION_HEADER pSectionHeader = (PIMAGE_SECTION_HEADER)((char*)pOptionHeader + pFileHeader->SizeOfOptionalHeader);
 
+  // 判断RVA是否有效,RVA是相对于模块基址的
+  DWORD dwImageBase = (DWORD)lpFileBuff;
   DWORD dwVa = dwImageBase + dwRva;
-  if (dwVa < dwImageBase || dwVa >= dwImageBase + m_dwSizeOfImage)
+  if (dwVa < dwImageBase || dwVa >= dwImageBase + pOptionHeader->SizeOfImage)
   {
     return -1;
   }
   
   // 遍历节表，获取FA
-  PIMAGE_SECTION_HEADER pSectionHeader = m_pSectionHeader;
-  for (int i = 0; i < m_wNumberOfSections; ++i)
+  for (int i = 0; i < pFileHeader->NumberOfSections; ++i)
   {
     DWORD dwVirtualAddress = pSectionHeader->VirtualAddress;  // 映射到内存的地址，RVA
     DWORD dwVirtualSize = pSectionHeader->Misc.VirtualSize;   // 映射到内存的数据大小，OS会将该值对齐后申请内存

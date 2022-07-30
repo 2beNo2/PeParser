@@ -1116,13 +1116,13 @@ void CPeparserDlg::ShowExportDirectory()
 	DWORD dwNumberOfNames = pExport->NumberOfNames;
 
 	DWORD dwAddressOfFunctions = pExport->AddressOfFunctions;
-	DWORD *pAddressOfFunctions = (DWORD*)(m_pMyPe->Rva2Fa(dwAddressOfFunctions) + (char*)m_pMyPe->GetDosHeaderPointer());
+	DWORD *pAddressOfFunctions = (DWORD*)(CMyPe::Rva2Fa(dwAddressOfFunctions, lpBase) + (char*)m_pMyPe->GetDosHeaderPointer());
 
 	DWORD dwAddressOfNames = pExport->AddressOfNames;
-	DWORD* pAddressOfNames = (DWORD*)(m_pMyPe->Rva2Fa(dwAddressOfNames) + (char*)m_pMyPe->GetDosHeaderPointer());
+	DWORD* pAddressOfNames = (DWORD*)(CMyPe::Rva2Fa(dwAddressOfNames, lpBase) + (char*)m_pMyPe->GetDosHeaderPointer());
 
 	DWORD dwAddressOfNameOrdinals = pExport->AddressOfNameOrdinals;
-	WORD* pAddressOfNameOrdinals = (WORD*)(m_pMyPe->Rva2Fa(dwAddressOfNameOrdinals) + (char*)m_pMyPe->GetDosHeaderPointer());
+	WORD* pAddressOfNameOrdinals = (WORD*)(CMyPe::Rva2Fa(dwAddressOfNameOrdinals, lpBase) + (char*)m_pMyPe->GetDosHeaderPointer());
 
 	DWORD dwIndex = 0;
 	for (DWORD i = 0; i < dwNumberOfFunctions; ++i) 
@@ -1210,7 +1210,7 @@ void CPeparserDlg::ShowImportDirectory()
 	// 遍历导入表，导入表是全0结构代表结束
 	while (pImport->Name != NULL)
 	{
-		csTmp.Format(TEXT("%s"), (m_pMyPe->Rva2Fa(pImport->Name) + (char*)lpBase));
+		csTmp.Format(TEXT("%s"), (CMyPe::Rva2Fa(pImport->Name, lpBase) + (char*)lpBase));
 		m_DoubleAListCtrl->InsertItem(nItem, csTmp);
 		csTmp.Format(TEXT("%08X"), pImport->OriginalFirstThunk);
 		m_DoubleAListCtrl->SetItemText(nItem, 1, csTmp);
@@ -1226,6 +1226,8 @@ void CPeparserDlg::ShowImportDirectory()
 		nItem++;
 		pImport++;
 	}
+
+	//TestImport();
 }
 
 void CPeparserDlg::ShowResourceDirectory()
@@ -1252,15 +1254,47 @@ void CPeparserDlg::ShowRelocDirectory()
 	ClearDoubleAListCtrl();
 	ClearDoubleBListCtrl();
 
-	m_DoubleAListCtrl->InsertColumn(0, TEXT("Member"), LVCFMT_LEFT, 150);
-	m_DoubleAListCtrl->InsertColumn(1, TEXT("Offset"), LVCFMT_LEFT, 120);
-	m_DoubleAListCtrl->InsertColumn(2, TEXT("Size"), LVCFMT_LEFT, 120);
-	m_DoubleAListCtrl->InsertColumn(3, TEXT("Value"), LVCFMT_LEFT, 120);
+	m_DoubleAListCtrl->InsertColumn(0, TEXT("Rva"), LVCFMT_LEFT, 150);
+	m_DoubleAListCtrl->InsertColumn(1, TEXT("SizeOfBlock"), LVCFMT_LEFT, 120);
+	m_DoubleAListCtrl->InsertColumn(2, TEXT("Items(d)"), LVCFMT_LEFT, 120);
 
 	PIMAGE_BASE_RELOCATION pReloc = (PIMAGE_BASE_RELOCATION)m_pMyPe->GetRelocDirectoryPointer();
 	if (pReloc == NULL)
 	{
 		return;
+	}
+
+	/*
+	typedef struct _IMAGE_BASE_RELOCATION {
+					DWORD   VirtualAddress;  // 页起始地址RVA，通知系统该分页上有数据需要重定位
+					DWORD   SizeOfBlock;     // 整个数据块的大小，包含SizeOfBlock
+			//  WORD    TypeOffset[1];   // 柔性数组，保存了要修正的数据相对于页的偏移，低12位表偏移
+  																// 数组成员的高4位，决定了修复的方式，是修正4个字节还是2个字节
+  																// 高4位为0，表示无效，用来对齐
+  																// 高4位为3，表示修4字节
+  																// 高4位为0xA，表示修8字节
+			} IMAGE_BASE_RELOCATION;
+			typedef IMAGE_BASE_RELOCATION UNALIGNED * PIMAGE_BASE_RELOCATION;
+	*/
+	LPVOID lpBase = m_pMyPe->GetDosHeaderPointer();
+	int nItem = 0;
+	CString csTmp;
+
+	DWORD dwRelocSize = m_pMyPe->GetRelocDirectorySize();
+	DWORD dwReserve = 0;
+
+	while (dwReserve != dwRelocSize)
+	{
+		csTmp.Format(TEXT("%08X"), pReloc->VirtualAddress);
+		m_DoubleAListCtrl->InsertItem(nItem, csTmp);
+		csTmp.Format(TEXT("%08X"), pReloc->SizeOfBlock);
+		m_DoubleAListCtrl->SetItemText(nItem, 1, csTmp);
+		csTmp.Format(TEXT("%d"), (pReloc->SizeOfBlock - 8) / 2);
+		m_DoubleAListCtrl->SetItemText(nItem, 2, csTmp);
+
+		dwReserve = dwReserve + pReloc->SizeOfBlock;
+		pReloc = (PIMAGE_BASE_RELOCATION)((char*)pReloc + pReloc->SizeOfBlock);
+		nItem++;
 	}
 }
 
@@ -1359,59 +1393,114 @@ void CPeparserDlg::OnClickLstDoubleA(NMHDR* pNMHDR, LRESULT* pResult)
 	// TODO: 在此添加控件通知处理程序代码
 	*pResult = 0;
 
-	// 需要确定当前是导入表
 	HTREEITEM hTreeItem = m_TreeCtrl.GetSelectedItem();
 	CString csItemText = m_TreeCtrl.GetItemText(hTreeItem);
-	if (csItemText != TEXT("Import Directory"))
+
+	if (csItemText == TEXT("Import Directory"))
 	{
-		return;
+		// 需要确定当前是导入表
+		ClearDoubleBListCtrl();
+		m_DoubleBListCtrl->InsertColumn(0, TEXT("INT Rva"), LVCFMT_LEFT, 120);
+		m_DoubleBListCtrl->InsertColumn(1, TEXT("IAT Rva"), LVCFMT_LEFT, 120);
+		m_DoubleBListCtrl->InsertColumn(2, TEXT("Hint"), LVCFMT_LEFT, 120);
+		m_DoubleBListCtrl->InsertColumn(3, TEXT("Name"), LVCFMT_LEFT, 180);
+
+		LPVOID lpBase = m_pMyPe->GetDosHeaderPointer();
+		PIMAGE_IMPORT_DESCRIPTOR pImport = (PIMAGE_IMPORT_DESCRIPTOR)m_pMyPe->GetImportDirectoryPointer();
+		int nSelect = m_DoubleAListCtrl->GetSelectionMark();
+		int* pInt = (int*)(CMyPe::Rva2Fa(pImport[nSelect].OriginalFirstThunk, lpBase) + (char*)lpBase);
+		int* pIat = (int*)(CMyPe::Rva2Fa(pImport[nSelect].FirstThunk, lpBase) + (char*)lpBase);
+
+		// IAT表的第一项为0时，表示无效导入表项
+		if (pIat[0] == 0) return;
+
+		// 程序未装载时，INT和IAT中保存的内容是一样的
+		// 特殊情况，在绑定导入表中，IAT表中已经填好了函数的地址，所以遍历时使用INT更好
+		int nItem = 0;
+		CString csTmp;
+		while (pInt[nItem] != NULL)
+		{
+			csTmp.Format(TEXT("%08X"), pInt[nItem]);
+			m_DoubleBListCtrl->InsertItem(nItem, csTmp);
+			csTmp.Format(TEXT("%08X"), pIat[nItem]);
+			m_DoubleBListCtrl->SetItemText(nItem, 1, csTmp);
+
+			// 判断是名称导出还是序号导出
+			if ((pInt[nItem] & 0x80000000) != 0)
+			{
+				// 序号导出
+				csTmp.Format(TEXT("%s"), TEXT("N/A"));
+				m_DoubleBListCtrl->SetItemText(nItem, 2, csTmp);
+				csTmp.Format(TEXT("Oridinal:%08X"), (pInt[nItem] & ~0x80000000));
+				m_DoubleBListCtrl->SetItemText(nItem, 3, csTmp);
+			}
+			else
+			{
+				// 名称导出
+				csTmp.Format(TEXT("%04X"), *(WORD*)(CMyPe::Rva2Fa(pInt[nItem], lpBase) + (char*)lpBase));
+				m_DoubleBListCtrl->SetItemText(nItem, 2, csTmp);
+				csTmp.Format(TEXT("%s"), (char*)(CMyPe::Rva2Fa(pInt[nItem], lpBase) + (char*)lpBase + 2));
+				m_DoubleBListCtrl->SetItemText(nItem, 3, csTmp);
+			}
+			nItem++;
+		}
 	}
 
-	ClearDoubleBListCtrl();
-	m_DoubleBListCtrl->InsertColumn(0, TEXT("INT Rva"), LVCFMT_LEFT, 120);
-	m_DoubleBListCtrl->InsertColumn(1, TEXT("IAT Rva"), LVCFMT_LEFT, 120);
-	m_DoubleBListCtrl->InsertColumn(2, TEXT("Hint"), LVCFMT_LEFT, 120);
-	m_DoubleBListCtrl->InsertColumn(3, TEXT("Name"), LVCFMT_LEFT, 180);
-
-	LPVOID lpBase = m_pMyPe->GetDosHeaderPointer();
-	PIMAGE_IMPORT_DESCRIPTOR pImport = (PIMAGE_IMPORT_DESCRIPTOR)m_pMyPe->GetImportDirectoryPointer();
-	int nSelect = m_DoubleAListCtrl->GetSelectionMark();
-	int* pInt = (int*)(m_pMyPe->Rva2Fa(pImport[nSelect].OriginalFirstThunk) + (char*)lpBase);
-	int* pIat = (int*)(m_pMyPe->Rva2Fa(pImport[nSelect].FirstThunk) + (char*)lpBase);
-
-	// IAT表的第一项为0时，表示无效导入表项
-	if (pIat[0] == 0) return;
-	
-	// 程序未装载时，INT和IAT中保存的内容是一样的
-  // 特殊情况，在绑定导入表中，IAT表中已经填好了函数的地址，所以遍历时使用INT更好
-	int nItem = 0;
-	CString csTmp;
-	while (pInt[nItem] != NULL)
+	if (csItemText == TEXT("Relocation Directory"))
 	{
-		csTmp.Format(TEXT("%08X"), pInt[nItem]);
-		m_DoubleBListCtrl->InsertItem(nItem, csTmp);
-		csTmp.Format(TEXT("%08X"), pIat[nItem]);
-		m_DoubleBListCtrl->SetItemText(nItem, 1, csTmp);
+		ClearDoubleBListCtrl();
+		m_DoubleBListCtrl->InsertColumn(0, TEXT("Item"), LVCFMT_LEFT, 120);
+		m_DoubleBListCtrl->InsertColumn(1, TEXT("Rva"), LVCFMT_LEFT, 120);
+		m_DoubleBListCtrl->InsertColumn(2, TEXT("Type"), LVCFMT_LEFT, 120);
 
-		// 判断是名称导出还是序号导出
-		if ((pInt[nItem] & 0x80000000) != 0)
+		PIMAGE_BASE_RELOCATION pReloc = (PIMAGE_BASE_RELOCATION)m_pMyPe->GetRelocDirectoryPointer();
+		if (pReloc == NULL)
 		{
-			// 序号导出
-			csTmp.Format(TEXT("%s"), TEXT("N/A"));
-			m_DoubleBListCtrl->SetItemText(nItem, 2, csTmp);
-			csTmp.Format(TEXT("Oridinal:%08X"), (pInt[nItem] & ~0x80000000));
-			m_DoubleBListCtrl->SetItemText(nItem, 3, csTmp);
+			return;
 		}
-		else
+
+		// 指针移动到目标导入表项
+		int nSelect = m_DoubleAListCtrl->GetSelectionMark();
+		for (int i = 0; i < nSelect; ++i)
 		{
-			// 名称导出
-			csTmp.Format(TEXT("%04X"), *(WORD*)(m_pMyPe->Rva2Fa(pInt[nItem]) + (char*)lpBase));
-			m_DoubleBListCtrl->SetItemText(nItem, 2, csTmp);
-			csTmp.Format(TEXT("%s"), (char*)(m_pMyPe->Rva2Fa(pInt[nItem]) + (char*)lpBase + 2));
-			m_DoubleBListCtrl->SetItemText(nItem, 3, csTmp);
+			pReloc = (PIMAGE_BASE_RELOCATION)((char*)pReloc + pReloc->SizeOfBlock);
 		}
-		nItem++;
+
+		CString csTmp;
+		WORD* wItem = (WORD*)((char*)pReloc + 8);
+		for (WORD i = 0; i < (pReloc->SizeOfBlock - 8) / 2; ++i)
+		{
+			csTmp.Format(TEXT("%04X"), wItem[i]);
+			m_DoubleBListCtrl->InsertItem(i, csTmp);
+			csTmp.Format(TEXT("%08X"), pReloc->VirtualAddress + (wItem[i] & 0xfff));
+			m_DoubleBListCtrl->SetItemText(i, 1, csTmp);
+			switch (wItem[i] >> 12)
+			{
+			case 0:
+			{
+				csTmp.Format(TEXT("%s"), TEXT("N/A"));
+				m_DoubleBListCtrl->SetItemText(i, 2, csTmp);
+				break;
+			}
+			case 0x3:
+			{
+				csTmp.Format(TEXT("%s"), TEXT("HIGHLOW"));
+				m_DoubleBListCtrl->SetItemText(i, 2, csTmp);
+				break;
+			}
+			case 0xa:
+			{
+				csTmp.Format(TEXT("%s"), TEXT("to do..."));
+				m_DoubleBListCtrl->SetItemText(i, 2, csTmp);
+				break;
+			}
+			}
+		}
+
 	}
+
+
+
 }
 
 
@@ -1438,4 +1527,11 @@ void CPeparserDlg::TestExport()
 		csRet.Format("%p", lpRet);
 		AfxMessageBox(csRet);
 	}
+}
+
+
+void CPeparserDlg::TestImport()
+{
+	// 测试增加导入表
+	CMyPe::MyAddImportTableItem(m_pMyPe->GetDosHeaderPointer(), "kernel32.dll", "CreateProcess");
 }

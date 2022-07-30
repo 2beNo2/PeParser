@@ -56,16 +56,17 @@
 	} IMAGE_IMPORT_BY_NAME, *PIMAGE_IMPORT_BY_NAME;
   ```
   
-  - **重定位表**：
+  - **重定位表**：LoadPe和加壳器，需要对重定位表中的数据做重定位处理
   ```
   typedef struct _IMAGE_BASE_RELOCATION {
 	    DWORD   VirtualAddress;  // 页起始地址RVA，通知系统该分页上有数据需要重定位
 	    DWORD   SizeOfBlock;     // 整个数据块的大小，包含SizeOfBlock
 	//  WORD    TypeOffset[1];   // 柔性数组，保存了要修正的数据相对于页的偏移
-			             // 数组成员的高8位，决定了修复的方式，是修正4个字节还是2个字节
-				     // 高8位为0，表示无效，用来对齐
-			             // 高8位为3，表示修4字节
-			             // 高8位为0xA，表示修8字节
+															 // 低12位表偏移
+			             // 数组成员的高4位，决定了修复的方式，是修正4个字节还是2个字节
+				           // 高4位为0，表示无效，用来对齐
+			             // 高4位为3，表示修4字节
+			             // 高4位为0xA，表示修8字节
 	} IMAGE_BASE_RELOCATION;
 	typedef IMAGE_BASE_RELOCATION UNALIGNED * PIMAGE_BASE_RELOCATION;
   ```

@@ -22,19 +22,20 @@ public:
   static int WriteMemoryToFile(void* pFileBuff, int nFileSize, const char* strFilePath);
 
 public:
+  static DWORD  Rva2Fa(DWORD dwRva, LPVOID lpFileBuff);
   static DWORD  GetAlignSize(DWORD dwDataSize, DWORD dwAlign);
-  static LPVOID AddSection(LPVOID lpOldFileBuff, LPVOID lpDataBuff = NULL, DWORD dwDataSize = NULL); // 新增一个节
+  // 新增一个节
+  static LPVOID AddSection(LPVOID lpOldFileBuff, DWORD dwOldFileSize, LPVOID lpDataBuff=NULL, DWORD dwDataSize=NULL); 
 
   // 导出表的利用
   static LPVOID MyGetProcFunName(LPVOID pfnAddr); // 通过函数地址获取函数名称/序号
   static LPVOID MyGetProcAddress(HMODULE hInst, LPCSTR lpProcName); // 自实现的GetProcAddress
   
-  // 导入表的利用
-  static LPVOID MyAddImportTableItem(LPVOID lpFileBuff, LPCSTR lpDllName, LPCSTR lpProcName); // 导入表注入
+  // 导入表的利用 导入表注入
+  static LPVOID MyAddImportTableItem(LPVOID lpFileBuff, LPCSTR lpDllName, LPCSTR lpProcName); 
 
 
 public:
-  DWORD Rva2Fa(DWORD dwRva, LPVOID lpImageBase = NULL);
   LPVOID GetExportName(DWORD dwOrdinal); // 通过序号来获取导出的名称
 
 private:
@@ -61,6 +62,7 @@ public:
   LPVOID GetResourceDirectoryPointer();
   LPVOID GetRelocDirectoryPointer();
   LPVOID GetTlsDirectoryPointer();
+
   DWORD  GetExportDirectorySize();
   DWORD  GetRelocDirectorySize();
 
