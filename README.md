@@ -85,7 +85,7 @@
 	} IMAGE_TLS_DIRECTORY32;
   ```
   
-  - **资源表**：
+  - **资源表**：`FindResource`、`LoadResource`、`LockResource`等获取资源的API实际是对PE格式解析，获取对应的地址
   	- `资源目录：`目录都解释为该结构体：
   	```
 	typedef struct _IMAGE_RESOURCE_DIRECTORY {
@@ -105,10 +105,10 @@
 		struct {
 		    DWORD NameOffset:31;  //偏移量是按照资源节的起始来计算的
 		    DWORD NameIsString:1; //如果最高位为1，则剩下31位填写 名称字符串的偏移量
-								  //资源的字符串都是pascal字符串格式，
-									//第一个字节表字符个数，后面每2个字节保存一个字符
-								  //如果最高位为0，则LDWORD保存id号        
-								  //ID号有宏定义：RT_ICON = 3
+					//资源的字符串都是pascal字符串格式，
+					//第一个字节表字符个数，后面每2个字节保存一个字符
+					//如果最高位为0，则LDWORD保存id号        
+					//ID号有宏定义：RT_ICON = 3
 		};
 		DWORD   Name;　　　　　　　　　　　　　　　　　
 		WORD    Id;
@@ -118,7 +118,7 @@
 		struct {
 		    DWORD   OffsetToDirectory:31; //偏移量是按照资源节的起始来计算的
 		    DWORD   DataIsDirectory:1;    //如果最高位为1，则为下一个目录的偏移量
-										  //如果最高位为0，则为下一个数据的偏移量
+						  //如果最高位为0，则为下一个数据的偏移量
 		};
 	    };
 	} IMAGE_RESOURCE_DIRECTORY_ENTRY, *PIMAGE_RESOURCE_DIRECTORY_ENTRY;
