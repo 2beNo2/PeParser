@@ -71,7 +71,20 @@
 	typedef IMAGE_BASE_RELOCATION UNALIGNED * PIMAGE_BASE_RELOCATION;
   ```
   
+  - **TLS表**：TLS的回调函数可用于反调试，装载PE时可拷贝一份TLS节表到装载器中
+  ```
+  typedef struct _IMAGE_TLS_DIRECTORY32 {
+	  DWORD StartAddressOfRawData; // VA，TLS数据块的起始，VA - imagebase = RVA
+	  DWORD EndAddressOfRawData;   // VA，TLS数据块的结束
+	  PDWORD AddressOfIndex;       // VA，该TLS数据块在ThreadLocalStoragePointer 指针数组的下标
+	  PIMAGE_TLS_CALLBACK *AddressOfCallBacks; // VA，以0结尾的函数指针数组，手动填写函数指针时，注意也是VA
+						// 函数指针数组保存了回调函数的指针，用于初始化TLS
+						// 和dllMain的格式一样
+	  DWORD SizeOfZeroFill;
+	  DWORD Characteristics;
+	} IMAGE_TLS_DIRECTORY32;
+  ```
   
   - **资源表**：
-  
+  `资源目录：`目录都解释为该结构体
   
