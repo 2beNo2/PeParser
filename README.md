@@ -47,11 +47,11 @@
 
 	// IMAGE_THUNK_DATA32 在不同的状态下有不同的解释方式：
 	// 在文件状态下解释为 PIMAGE_IMPORT_BY_NAME
-	// 进程状态后是函数地址
+	// 进程状态下是函数地址
 	// 如果是序号导入的函数，最高位应该为一，取LWORD作为序号
 
 	typedef struct _IMAGE_IMPORT_BY_NAME {
-	  WORD Hint;     // 编译器添加的当前电脑中对应函数的序号
+	  WORD Hint;     // 编译器添加的当前电脑中对应函数的序号，无实际意义
 	  BYTE Name[1];  // 字符串
 	} IMAGE_IMPORT_BY_NAME, *PIMAGE_IMPORT_BY_NAME;
   ```
@@ -63,7 +63,7 @@
 	    DWORD   SizeOfBlock;     // 整个数据块的大小，包含SizeOfBlock
 	//  WORD    TypeOffset[1];   // 柔性数组，保存了要修正的数据相对于页的偏移
 				     // 低12位表偏移
-			             // 数组成员的高4位，决定了修复的方式，是修正4个字节还是2个字节
+			             // 数组成员的高4位，决定了修复的方式，是修正4个字节还是8个字节
 				     // 高4位为0，表示无效，用来对齐
 			             // 高4位为3，表示修4字节
 			             // 高4位为0xA，表示修8字节
@@ -85,7 +85,7 @@
 	} IMAGE_TLS_DIRECTORY32;
   ```
   
-  - **资源表**：`FindResource`、`LoadResource`、`LockResource`等获取资源的API实际是对PE格式解析，获取对应的地址
+  - **资源表**：`FindResource`、`LoadResource`、`LockResource`等获取资源的API实际是对PE格式解析，获取对应资源的地址
   	- `资源目录：`目录都解释为该结构体：
   	```
 	typedef struct _IMAGE_RESOURCE_DIRECTORY {
