@@ -1269,10 +1269,10 @@ void CPeparserDlg::ShowRelocDirectory()
 					DWORD   VirtualAddress;  // 页起始地址RVA，通知系统该分页上有数据需要重定位
 					DWORD   SizeOfBlock;     // 整个数据块的大小，包含SizeOfBlock
 			//  WORD    TypeOffset[1];   // 柔性数组，保存了要修正的数据相对于页的偏移，低12位表偏移
-  																// 数组成员的高4位，决定了修复的方式，是修正4个字节还是2个字节
-  																// 高4位为0，表示无效，用来对齐
-  																// 高4位为3，表示修4字节
-  																// 高4位为0xA，表示修8字节
+  										// 数组成员的高4位，决定了修复的方式，是修正4个字节还是2个字节
+  										// 高4位为0，表示无效，用来对齐
+  										// 高4位为3，表示修4字节
+  										// 高4位为0xA，表示修8字节
 			} IMAGE_BASE_RELOCATION;
 			typedef IMAGE_BASE_RELOCATION UNALIGNED * PIMAGE_BASE_RELOCATION;
 	*/
@@ -1303,17 +1303,31 @@ void CPeparserDlg::ShowTlsDirectory()
 	ClearDoubleAListCtrl();
 	ClearDoubleBListCtrl();
 
-	m_DoubleAListCtrl->InsertColumn(0, TEXT("Member"), LVCFMT_LEFT, 150);
-	m_DoubleAListCtrl->InsertColumn(1, TEXT("Offset"), LVCFMT_LEFT, 120);
-	m_DoubleAListCtrl->InsertColumn(2, TEXT("Size"), LVCFMT_LEFT, 120);
-	m_DoubleAListCtrl->InsertColumn(3, TEXT("Value"), LVCFMT_LEFT, 120);
+	m_DoubleAListCtrl->InsertColumn(0, TEXT("StartAddressOfRawData"), LVCFMT_LEFT, 150);
+	m_DoubleAListCtrl->InsertColumn(1, TEXT("EndAddressOfRawData"), LVCFMT_LEFT, 120);
+	m_DoubleAListCtrl->InsertColumn(2, TEXT("AddressOfIndex"), LVCFMT_LEFT, 120);
+	m_DoubleAListCtrl->InsertColumn(3, TEXT("AddressOfCallBacks"), LVCFMT_LEFT, 120);
 
 	PIMAGE_TLS_DIRECTORY pExport = (PIMAGE_TLS_DIRECTORY)m_pMyPe->GetTlsDirectoryPointer();
 	if (pExport == NULL)
 	{
 		return;
 	}
-	// 没有必要遍历显示
+	
+	/*
+	typedef struct _IMAGE_TLS_DIRECTORY32 {
+		DWORD StartAddressOfRawData; // VA，TLS数据块的起始，VA - imagebase = RVA
+		DWORD EndAddressOfRawData;   // VA，TLS数据块的结束
+		PDWORD AddressOfIndex;       // VA，该TLS数据块在ThreadLocalStoragePointer 指针数组的下标
+		PIMAGE_TLS_CALLBACK *AddressOfCallBacks; // VA，以0结尾的函数指针数组，手动填写函数指针时，注意也是VA
+  									// 函数指针数组保存了回调函数的指针，用于初始化TLS
+  									// 和dllMain的格式一样
+		DWORD SizeOfZeroFill;
+		DWORD Characteristics;
+	  } IMAGE_TLS_DIRECTORY32;
+	*/
+
+
 }
 
 void CPeparserDlg::OnClose()

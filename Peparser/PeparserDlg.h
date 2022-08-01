@@ -82,5 +82,4 @@ public:
 	afx_msg void OnClose();
 	afx_msg void OnSelchangedTreePe(NMHDR* pNMHDR, LRESULT* pResult);
 	afx_msg void OnClickLstDoubleA(NMHDR* pNMHDR, LRESULT* pResult);
-	
 };

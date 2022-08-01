@@ -321,6 +321,15 @@ PVOID CMyPe::GetExportName(DWORD dwOrdinal)
   return nullptr;
 }
 
+
+/*
+函数功能：通过函数名称/序号，获取函数地址
+参数：
+  hInst：     模块句柄
+  lpProcName：函数名称/序号
+返回值：
+  返回查找到的函数地址
+*/
 LPVOID CMyPe::MyGetProcAddress(HMODULE hInst, LPCSTR lpProcName)
 {
   PIMAGE_DOS_HEADER pDosHeader = (PIMAGE_DOS_HEADER)hInst;
@@ -394,13 +403,21 @@ LPVOID CMyPe::MyGetProcAddress(HMODULE hInst, LPCSTR lpProcName)
         popad;
     }
     HMODULE hModule = ::LoadLibrary(dllName);  // 此处可优化为不使用API
-    return CMyPe::MyGetProcAddress(hModule, (char*)dwProcAddr);
-
+    return CMyPe::MyGetProcAddress(hModule, (char*)dwProcAddr); // 递归查找
   }
 
   return (void*)dwProcAddr;
 }
 
+
+
+/*
+函数功能：通过函数地址获取函数名称/序号
+参数：
+  pfnAddr：目标函数地址
+返回值：
+  返回函数名称或序号
+*/
 LPVOID CMyPe::MyGetProcFunName(LPVOID pfnAddr)
 {
   /*
@@ -444,6 +461,7 @@ LPVOID CMyPe::MyGetProcFunName(LPVOID pfnAddr)
   _LIST_ENTRY* pPrevNode = NULL;
   _LIST_ENTRY* pNextNode = NULL;
 
+  // 通过TEB获取模块信息表
   __asm {
     pushad;
     mov eax, fs: [0x18] ;   //teb
@@ -463,6 +481,7 @@ LPVOID CMyPe::MyGetProcFunName(LPVOID pfnAddr)
     return NULL;
   }
 
+  // 遍历模块信息表，在模块的导出表中查找
   HMODULE hModule = NULL;
   _LIST_ENTRY* pTmp = NULL;
   int nSizeOfImage = 0;
@@ -563,7 +582,7 @@ LPVOID CMyPe::AddSection(LPVOID lpOldFileBuff, DWORD dwOldFileSize, LPVOID lpDat
   {
     return NULL;
   }
-  ZeroMemory(lpNewFileBuff, dwNewFileSize);
+  ::RtlZeroMemory(lpNewFileBuff, dwNewFileSize);
 
   memcpy(lpNewFileBuff, lpOldFileBuff, dwOldFileSize);
   if (lpDataBuff != NULL) 
