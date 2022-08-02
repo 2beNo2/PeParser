@@ -543,7 +543,6 @@ LPVOID CMyPe::MyGetProcFunName(LPVOID pfnAddr)
 DWORD CMyPe::GetAlignSize(DWORD dwDataSize, DWORD dwAlign)
 {
   if (dwDataSize == 0) return 0;
-  if (dwDataSize <= dwAlign) return dwAlign;
   DWORD dwMod = dwDataSize % dwAlign;
   if (dwMod == 0)
   {
