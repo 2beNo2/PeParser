@@ -1,860 +1,1288 @@
-#include "pch.h"
+ï»¿#include "pch.h"
 #include "CMyPe.h"
+#include "MyLibC.h"
 
 CMyPe::CMyPe()
 {
-  Init();
+    Init();
 }
+
 
 CMyPe::CMyPe(void* pFileBuff)
 {
-  Init();
-  InitPeFormat(pFileBuff);
-  m_bIsMemInit = 1;
+    Init();
+    m_bIsMemInit = 1;
+    InitPeFormat(pFileBuff);
 }
+
 
 CMyPe::CMyPe(const char* strFilePath)
 {
-  Init();
-  InitPeFormat(strFilePath);
-  m_bIsMemInit = 0;
+    Init();
+    m_bIsMemInit = 0;
+    InitPeFormat(strFilePath);
 }
+
 
 CMyPe::~CMyPe()
 {
-  if (m_lpFileBuff != NULL && m_bIsMemInit != 1)
-  {
-    ::UnmapViewOfFile(m_lpFileBuff);
-    m_lpFileBuff = NULL;
-  }
+    if (m_lpFileBuff != NULL && m_bIsMemInit != 1)
+    {
+        ::UnmapViewOfFile(m_lpFileBuff);
+        m_lpFileBuff = NULL;
+    }
 
-  if (m_hFileMap != NULL)
-  {
-    ::CloseHandle(m_hFileMap);
-    m_hFileMap = NULL;
-  }
+    if (m_hFileMap != NULL)
+    {
+        ::CloseHandle(m_hFileMap);
+        m_hFileMap = NULL;
+    }
 
-  if (m_hFile != INVALID_HANDLE_VALUE)
-  {
-    ::CloseHandle(m_hFile);
-    m_hFile = INVALID_HANDLE_VALUE;
-  }
+    if (m_hFile != INVALID_HANDLE_VALUE)
+    {
+        ::CloseHandle(m_hFile);
+        m_hFile = INVALID_HANDLE_VALUE;
+    }
 }
 
-int CMyPe::IsPeFile(void* pFileBuff)
-{
-  // ÅĞ¶ÏÊÇ·ñPEÎÄ¼ş
-  PIMAGE_DOS_HEADER pDosHeader = (PIMAGE_DOS_HEADER)pFileBuff;
-  if (pDosHeader->e_magic != 'ZM')
-  {
-    return FILE_NOT_PE;
-  }
-  PIMAGE_NT_HEADERS pNtHeader = (PIMAGE_NT_HEADERS)((char*)pFileBuff + pDosHeader->e_lfanew);
-  if (pNtHeader->Signature != 'EP')
-  {
-    return FILE_NOT_PE;
-  }
-
-  return FILE_IS_PE;
-}
-
-int CMyPe::IsPeFile(const char* strFilePath)
-{
-  // ´ò¿ªÎÄ¼ş
-  HANDLE hFile = ::CreateFile(strFilePath,            // ÎÄ¼şÂ·¾¶
-                              GENERIC_READ | GENERIC_WRITE,  // ÎÄ¼şµÄ´ò¿ª·½Ê½
-                              FILE_SHARE_READ,        // ¹²ÏíÄ£Ê½£¬ÆäËûÎÄ¼ş¿É¶Á
-                              NULL,                   // °²È«ÊôĞÔ£¬ÓÃÓÚÈ·¶¨·µ»ØµÄ¾ä±úÊÇ·ñ¿ÉÒÔ±»×Ó½ø³Ì¼Ì³Ğ
-                              OPEN_EXISTING,          // ´ò¿ª·½Ê½
-                              FILE_ATTRIBUTE_NORMAL,  // ÎÄ¼şÊôĞÔ
-                              NULL);
-  if (hFile == INVALID_HANDLE_VALUE)
-  {
-    return FIlE_OPEN_FAILD;
-  }
-
-  // »ñÈ¡MZ±êÖ¾
-  WORD wMzMagic = 0;
-  DWORD dwNumberOfBytesRead = 0;
-  int nRet = ::ReadFile(hFile, &wMzMagic, sizeof(WORD), &dwNumberOfBytesRead, NULL);
-  if (nRet == 0) { goto OPENFAILD; }
-  if (wMzMagic != 'ZM') { goto NOTPE; }
-
-  // »ñÈ¡PE±êÖ¾
-  DWORD dwOffset = 0;
-  WORD wPeMagic = 0;
-  DWORD dwPtr = ::SetFilePointer(hFile, 0x3c, NULL, FILE_BEGIN);
-  if (dwPtr == INVALID_SET_FILE_POINTER) { goto OPENFAILD; }
-
-  nRet = ::ReadFile(hFile, &dwOffset, sizeof(DWORD), &dwNumberOfBytesRead, NULL);
-  if (nRet == 0){ goto OPENFAILD; }
-
-  dwPtr = ::SetFilePointer(hFile, dwOffset, NULL, FILE_BEGIN);
-  if (dwPtr == INVALID_SET_FILE_POINTER){ goto OPENFAILD; }
-
-  nRet = ::ReadFile(hFile, &wPeMagic, sizeof(wPeMagic), &dwNumberOfBytesRead, NULL);
-  if (nRet == 0){ goto OPENFAILD; }
-  if (wPeMagic != 'EP'){ goto NOTPE; }
-
-  ::CloseHandle(hFile);
-  return FILE_IS_PE;
-
-OPENFAILD:
-  ::CloseHandle(hFile);
-  return FIlE_OPEN_FAILD;
-
-NOTPE:
-  ::CloseHandle(hFile);
-  return FILE_NOT_PE;
-}
-
-int CMyPe::WriteMemoryToFile(void* pFileBuff, int nFileSize, const char* strFilePath)
-{
-  // ´ò¿ªÎÄ¼ş
-  HANDLE hFile = ::CreateFile(strFilePath,            // ÎÄ¼şÂ·¾¶
-                              GENERIC_WRITE,          // ÎÄ¼şµÄ´ò¿ª·½Ê½
-                              FILE_SHARE_READ,        // ¹²ÏíÄ£Ê½£¬ÆäËûÎÄ¼ş¿É¶Á
-                              NULL,                   // °²È«ÊôĞÔ£¬ÓÃÓÚÈ·¶¨·µ»ØµÄ¾ä±úÊÇ·ñ¿ÉÒÔ±»×Ó½ø³Ì¼Ì³Ğ
-                              CREATE_ALWAYS,          // ´ò¿ª·½Ê½
-                              FILE_ATTRIBUTE_NORMAL,  // ÎÄ¼şÊôĞÔ
-                              NULL);
-  if (hFile == INVALID_HANDLE_VALUE)
-  {
-    return FIlE_OPEN_FAILD;
-  }
-
-  DWORD dwNumberOfBytesWritten = 0;
-  if (!::WriteFile(hFile, pFileBuff, nFileSize, &dwNumberOfBytesWritten, NULL))
-  {
-    ::CloseHandle(hFile);
-    return FIlE_WRITE_FAILD;
-  }
-
-  ::CloseHandle(hFile);
-  return FIlE_WRITE_SUC;
-}
 
 void CMyPe::Init()
 {
-  m_lpFileBuff = NULL;
-  m_pDosHeader = NULL;
-  m_pNtHeader = NULL;
-  m_pFileHeader = NULL;
-  m_pOptionHeader = NULL;
-  m_pSectionHeader = NULL;
-  m_pExportDirectory = NULL;
-  m_pImportDirectory = NULL;
-  m_pResourceDirectory = NULL;
-  m_pRelocDirectory = NULL;
-  m_pTlsDirectory = NULL;
-  m_dwExportSize = 0;
-  m_dwImportSize = 0;
-  m_dwRelocSize = 0;
+    m_lpFileBuff = NULL;
+    m_pDosHeader = NULL;
+    m_pNtHeader = NULL;
+    m_pFileHeader = NULL;
+    m_pOptionHeader = NULL;
+    m_pSectionHeader = NULL;
+    m_pExportDirectory = NULL;
+    m_pImportDirectory = NULL;
+    m_pResourceDirectory = NULL;
+    m_pRelocDirectory = NULL;
+    m_pTlsDirectory = NULL;
+    m_dwExportSize = 0;
+    m_dwImportSize = 0;
+    m_dwRelocSize = 0;
 
-  m_wNumberOfSections = 0;
-  m_dwAddressOfEntryPoint = 0;
-  m_dwImageBase = 0;
-  m_dwSectionAlignment = 0;
-  m_dwFileAlignment = 0;
-  m_dwSizeOfImage = 0;
-  m_dwSizeOfHeaders = 0;
-  m_dwNumberOfRvaAndSizes = 0;
+    m_wNumberOfSections = 0;
+    m_dwAddressOfEntryPoint = 0;
+    m_dwImageBase = 0;
+    m_dwSectionAlignment = 0;
+    m_dwFileAlignment = 0;
+    m_dwSizeOfImage = 0;
+    m_dwSizeOfHeaders = 0;
+    m_dwNumberOfRvaAndSizes = 0;
 
-  m_hFile = INVALID_HANDLE_VALUE;
-  m_dwFileSize = 0;
-  m_hFileMap = NULL;
-  m_bIsMemInit = 0;
+    m_hFile = INVALID_HANDLE_VALUE;
+    m_dwFileSize = 0;
+    m_hFileMap = NULL;
+    m_bIsMemInit = 0;
 }
+
 
 void CMyPe::InitPeFormat(void* pFileBuff)
 {
-  if (IsPeFile(pFileBuff) != FILE_IS_PE)
-  {
-    return;
-  }
-  m_lpFileBuff = pFileBuff;
-  m_pDosHeader = (PIMAGE_DOS_HEADER)pFileBuff;
-  m_pNtHeader = (PIMAGE_NT_HEADERS)((char*)pFileBuff + m_pDosHeader->e_lfanew);
-  m_pFileHeader = (PIMAGE_FILE_HEADER)(&m_pNtHeader->FileHeader);
-  m_pOptionHeader = (PIMAGE_OPTIONAL_HEADER)(&m_pNtHeader->OptionalHeader);
-  m_pSectionHeader = (PIMAGE_SECTION_HEADER)((char*)m_pOptionHeader + m_pFileHeader->SizeOfOptionalHeader);
+    if (pFileBuff == NULL) return;
 
-  m_wNumberOfSections = m_pFileHeader->NumberOfSections;
-  m_dwAddressOfEntryPoint = m_pOptionHeader->AddressOfEntryPoint;
-  m_dwImageBase = m_pOptionHeader->ImageBase;
-  m_dwSectionAlignment = m_pOptionHeader->SectionAlignment;
-  m_dwFileAlignment = m_pOptionHeader->FileAlignment;
-  m_dwSizeOfImage = m_pOptionHeader->SizeOfImage;
-  m_dwSizeOfHeaders = m_pOptionHeader->SizeOfHeaders;
-  m_dwNumberOfRvaAndSizes = m_pOptionHeader->NumberOfRvaAndSizes;
+    if (IsPeFile(pFileBuff) != FILE_IS_PE)
+    {
+        return;
+    }
+    m_lpFileBuff = pFileBuff;
+    m_pDosHeader = (PIMAGE_DOS_HEADER)pFileBuff;
+    m_pNtHeader = (PIMAGE_NT_HEADERS)((char*)pFileBuff + m_pDosHeader->e_lfanew);
+    m_pFileHeader = (PIMAGE_FILE_HEADER)(&m_pNtHeader->FileHeader);
+    m_pOptionHeader = (PIMAGE_OPTIONAL_HEADER)(&m_pNtHeader->OptionalHeader);
+    m_pSectionHeader = (PIMAGE_SECTION_HEADER)((char*)m_pOptionHeader + m_pFileHeader->SizeOfOptionalHeader);
 
-  // µ¼³ö±í
-  DWORD dwExportRva = m_pOptionHeader->DataDirectory[IMAGE_DIRECTORY_ENTRY_EXPORT].VirtualAddress;
-  m_dwExportSize = m_pOptionHeader->DataDirectory[IMAGE_DIRECTORY_ENTRY_EXPORT].Size;
-  DWORD dwFa = Rva2Fa(dwExportRva, pFileBuff);
-  if (dwFa == -1) 
-  {
-    m_pExportDirectory = NULL;
-  }
-  else
-  {
-    m_pExportDirectory = (PIMAGE_EXPORT_DIRECTORY)(dwFa + (char*)m_lpFileBuff);
-  }
-  
+    m_wNumberOfSections = m_pFileHeader->NumberOfSections;
+    m_dwAddressOfEntryPoint = m_pOptionHeader->AddressOfEntryPoint;
+    m_dwImageBase = m_pOptionHeader->ImageBase;
+    m_dwSectionAlignment = m_pOptionHeader->SectionAlignment;
+    m_dwFileAlignment = m_pOptionHeader->FileAlignment;
+    m_dwSizeOfImage = m_pOptionHeader->SizeOfImage;
+    m_dwSizeOfHeaders = m_pOptionHeader->SizeOfHeaders;
+    m_dwNumberOfRvaAndSizes = m_pOptionHeader->NumberOfRvaAndSizes;
 
-  // µ¼Èë±í
-  DWORD dwImportRva = m_pOptionHeader->DataDirectory[IMAGE_DIRECTORY_ENTRY_IMPORT].VirtualAddress;
-  m_dwImportSize = m_pOptionHeader->DataDirectory[IMAGE_DIRECTORY_ENTRY_IMPORT].Size;
-  dwFa = Rva2Fa(dwImportRva, pFileBuff);
-  if (dwFa == -1)
-  {
-    m_pImportDirectory = NULL;
-  }
-  else
-  {
-    m_pImportDirectory = (PIMAGE_IMPORT_DESCRIPTOR)(dwFa + (char*)m_lpFileBuff);
-  }
+    // å¯¼å‡ºè¡¨
+    DWORD dwExportRva = m_pOptionHeader->DataDirectory[IMAGE_DIRECTORY_ENTRY_EXPORT].VirtualAddress;
+    m_dwExportSize = m_pOptionHeader->DataDirectory[IMAGE_DIRECTORY_ENTRY_EXPORT].Size;
+    DWORD dwFa = Rva2Fa(dwExportRva, pFileBuff);
+    if (dwFa == -1)
+    {
+        m_pExportDirectory = NULL;
+    }
+    else
+    {
+        m_pExportDirectory = (PIMAGE_EXPORT_DIRECTORY)(dwFa + (char*)m_lpFileBuff);
+    }
 
-  // ×ÊÔ´±í
-  DWORD dwResourceRva = m_pOptionHeader->DataDirectory[IMAGE_DIRECTORY_ENTRY_RESOURCE].VirtualAddress;
-  dwFa = Rva2Fa(dwResourceRva, pFileBuff);
-  if (dwFa == -1)
-  {
-    m_pResourceDirectory = NULL;
-  }
-  else
-  {
-    m_pResourceDirectory = (PIMAGE_RESOURCE_DIRECTORY)(dwFa + (char*)m_lpFileBuff);
-  }
 
-  // ÖØ¶¨Î»±í
-  DWORD dwRelocRva = m_pOptionHeader->DataDirectory[IMAGE_DIRECTORY_ENTRY_BASERELOC].VirtualAddress;
-  m_dwRelocSize = m_pOptionHeader->DataDirectory[IMAGE_DIRECTORY_ENTRY_BASERELOC].Size;
-  dwFa = Rva2Fa(dwRelocRva, pFileBuff);
-  if (dwFa == -1)
-  {
-    m_pRelocDirectory = NULL;
-  }
-  else
-  {
-    m_pRelocDirectory = (PIMAGE_BASE_RELOCATION)(dwFa + (char*)m_lpFileBuff);
-  }
+    // å¯¼å…¥è¡¨
+    DWORD dwImportRva = m_pOptionHeader->DataDirectory[IMAGE_DIRECTORY_ENTRY_IMPORT].VirtualAddress;
+    m_dwImportSize = m_pOptionHeader->DataDirectory[IMAGE_DIRECTORY_ENTRY_IMPORT].Size;
+    dwFa = Rva2Fa(dwImportRva, pFileBuff);
+    if (dwFa == -1)
+    {
+        m_pImportDirectory = NULL;
+    }
+    else
+    {
+        m_pImportDirectory = (PIMAGE_IMPORT_DESCRIPTOR)(dwFa + (char*)m_lpFileBuff);
+    }
 
-  // TLS±í
-  DWORD dwTlsRva = m_pOptionHeader->DataDirectory[IMAGE_DIRECTORY_ENTRY_TLS].VirtualAddress;
-  dwFa = Rva2Fa(dwTlsRva, pFileBuff);
-  if (dwFa == -1)
-  {
-    m_pTlsDirectory = NULL;
-  }
-  else
-  {
-    m_pTlsDirectory = (PIMAGE_TLS_DIRECTORY)(dwFa + (char*)m_lpFileBuff);
-  }
+    // èµ„æºè¡¨
+    DWORD dwResourceRva = m_pOptionHeader->DataDirectory[IMAGE_DIRECTORY_ENTRY_RESOURCE].VirtualAddress;
+    dwFa = Rva2Fa(dwResourceRva, pFileBuff);
+    if (dwFa == -1)
+    {
+        m_pResourceDirectory = NULL;
+    }
+    else
+    {
+        m_pResourceDirectory = (PIMAGE_RESOURCE_DIRECTORY)(dwFa + (char*)m_lpFileBuff);
+    }
+
+    // é‡å®šä½è¡¨
+    DWORD dwRelocRva = m_pOptionHeader->DataDirectory[IMAGE_DIRECTORY_ENTRY_BASERELOC].VirtualAddress;
+    m_dwRelocSize = m_pOptionHeader->DataDirectory[IMAGE_DIRECTORY_ENTRY_BASERELOC].Size;
+    dwFa = Rva2Fa(dwRelocRva, pFileBuff);
+    if (dwFa == -1)
+    {
+        m_pRelocDirectory = NULL;
+    }
+    else
+    {
+        m_pRelocDirectory = (PIMAGE_BASE_RELOCATION)(dwFa + (char*)m_lpFileBuff);
+    }
+
+    // TLSè¡¨
+    DWORD dwTlsRva = m_pOptionHeader->DataDirectory[IMAGE_DIRECTORY_ENTRY_TLS].VirtualAddress;
+    dwFa = Rva2Fa(dwTlsRva, pFileBuff);
+    if (dwFa == -1)
+    {
+        m_pTlsDirectory = NULL;
+    }
+    else
+    {
+        m_pTlsDirectory = (PIMAGE_TLS_DIRECTORY)(dwFa + (char*)m_lpFileBuff);
+    }
 }
+
 
 void CMyPe::InitPeFormat(const char* strFilePath)
 {
-  if (IsPeFile(strFilePath) != FILE_IS_PE)
-  {
-    return;
-  }
-  // ´ò¿ªÎÄ¼ş
-  m_hFile = ::CreateFile(strFilePath,           // ÎÄ¼şÂ·¾¶
-                        GENERIC_READ | GENERIC_WRITE,  // ÎÄ¼şµÄ´ò¿ª·½Ê½
-                        FILE_SHARE_READ,        // ¹²ÏíÄ£Ê½£¬ÆäËûÎÄ¼ş¿É¶Á
-                        NULL,                   // °²È«ÊôĞÔ£¬ÓÃÓÚÈ·¶¨·µ»ØµÄ¾ä±úÊÇ·ñ¿ÉÒÔ±»×Ó½ø³Ì¼Ì³Ğ
-                        OPEN_EXISTING,          // ´ò¿ª·½Ê½
-                        FILE_ATTRIBUTE_NORMAL,  // ÎÄ¼şÊôĞÔ
-                        NULL);
-  if (m_hFile == INVALID_HANDLE_VALUE)
-  {
-    return;
-  }
+    if (strFilePath == NULL) return;
 
-  // »ñÈ¡ÎÄ¼ş´óĞ¡
-  m_dwFileSize = ::GetFileSize(m_hFile, NULL);
+    if (IsPeFile(strFilePath) != FILE_IS_PE)
+    {
+        return;
+    }
+    // æ‰“å¼€æ–‡ä»¶
+    m_hFile = ::CreateFile(strFilePath,             // æ–‡ä»¶è·¯å¾„
+                            GENERIC_READ | GENERIC_WRITE,  // æ–‡ä»¶çš„æ‰“å¼€æ–¹å¼
+                            FILE_SHARE_READ,        // å…±äº«æ¨¡å¼ï¼Œå…¶ä»–æ–‡ä»¶å¯è¯»
+                            NULL,                   // å®‰å…¨å±æ€§ï¼Œç”¨äºç¡®å®šè¿”å›çš„å¥æŸ„æ˜¯å¦å¯ä»¥è¢«å­è¿›ç¨‹ç»§æ‰¿
+                            OPEN_EXISTING,          // æ‰“å¼€æ–¹å¼
+                            FILE_ATTRIBUTE_NORMAL,  // æ–‡ä»¶å±æ€§
+                            NULL);
+    if (m_hFile == INVALID_HANDLE_VALUE)
+    {
+        return;
+    }
 
-  // ´´½¨ÎÄ¼şÓ³Éä¶ÔÏó
-  m_hFileMap = ::CreateFileMapping(m_hFile,  // ÎÄ¼ş¾ä±ú
-                                    NULL,    // °²È«ÊôĞÔ£¬ÓÃÓÚÈ·¶¨·µ»ØµÄ¾ä±úÊÇ·ñ¿ÉÒÔ±»×Ó½ø³Ì¼Ì³Ğ
-                                    PAGE_READWRITE, // Ó³ÉäºóÄÚ´æÒ²µÄÄÚ´æÊôĞÔ
-                                    NULL,    // ´óÓÚ4GÊ±ÉèÖÃ
-                                    m_dwFileSize, // Ó³Éä´óĞ¡
-                                    NULL);   // ÎÄ¼şÓ³Éä¶ÔÏóµÄÃû³Æ£¬ÉèÖÃºó¿ÉÓÃÓÚ½ø³Ì¼äÍ¨ĞÅ
-  if (m_hFileMap == NULL)
-  {
+    // è·å–æ–‡ä»¶å¤§å°
+    m_dwFileSize = ::GetFileSize(m_hFile, NULL);
+
+    // åˆ›å»ºæ–‡ä»¶æ˜ å°„å¯¹è±¡
+    m_hFileMap = ::CreateFileMapping(m_hFile,  // æ–‡ä»¶å¥æŸ„
+                                    NULL,      // å®‰å…¨å±æ€§ï¼Œç”¨äºç¡®å®šè¿”å›çš„å¥æŸ„æ˜¯å¦å¯ä»¥è¢«å­è¿›ç¨‹ç»§æ‰¿
+                                    PAGE_READWRITE, // æ˜ å°„åå†…å­˜é¡µçš„å†…å­˜å±æ€§
+                                    NULL,      // å¤§äº4Gæ—¶è®¾ç½®
+                                    m_dwFileSize, // æ˜ å°„å¤§å°
+                                    NULL);     // æ–‡ä»¶æ˜ å°„å¯¹è±¡çš„åç§°ï¼Œè®¾ç½®åå¯ç”¨äºè¿›ç¨‹é—´é€šä¿¡
+    if (m_hFileMap == NULL)
+    {
+        goto EXIT_PROC;
+    }
+
+    // å°†æ–‡ä»¶æ˜ å°„åˆ°å†…å­˜
+    m_lpFileBuff = ::MapViewOfFile(m_hFileMap, FILE_MAP_ALL_ACCESS, 0, 0, 0);
+    if (m_lpFileBuff == NULL) {
+        goto EXIT_PROC;
+    }
+
+    InitPeFormat(m_lpFileBuff);
     return;
-  }
 
-  // ½«ÎÄ¼şÓ³Éäµ½ÄÚ´æ
-  m_lpFileBuff = ::MapViewOfFile(m_hFileMap, FILE_MAP_ALL_ACCESS, 0, 0, 0);
-  if (m_lpFileBuff == NULL) {
-    return;
-  }
+EXIT_PROC:
 
-  InitPeFormat(m_lpFileBuff);
+    if (m_hFileMap != NULL)
+    {
+        ::CloseHandle(m_hFileMap);
+        m_hFileMap = NULL;
+    }
+
+    if (m_hFile != INVALID_HANDLE_VALUE)
+    {
+        ::CloseHandle(m_hFile);
+        m_hFile = INVALID_HANDLE_VALUE;
+    }
 }
 
-PVOID CMyPe::GetExportName(DWORD dwOrdinal)
+
+int CMyPe::IsPeFile(void* pFileBuff)
 {
-  DWORD dwNumberOfNames = m_pExportDirectory->NumberOfNames;
-  if(dwNumberOfNames == 0)
-  {
-    return nullptr;
-  }
+    if (pFileBuff == NULL) 
+        return FILE_NOT_PE;
 
-  DWORD dwAddressOfNames = m_pExportDirectory->AddressOfNames;
-  DWORD* pAddressOfNames = (DWORD*)(Rva2Fa(dwAddressOfNames, m_lpFileBuff) + (char*)m_lpFileBuff);
-
-  DWORD dwAddressOfNameOrdinals = m_pExportDirectory->AddressOfNameOrdinals;
-  WORD* pAddressOfNameOrdinals = (WORD*)(Rva2Fa(dwAddressOfNameOrdinals, m_lpFileBuff) + (char*)m_lpFileBuff);
-
-  for(DWORD i = 0; i < dwNumberOfNames; ++i)
-  {
-    if(pAddressOfNameOrdinals[i] == dwOrdinal)
+    // åˆ¤æ–­æ˜¯å¦PEæ–‡ä»¶
+    PIMAGE_DOS_HEADER pDosHeader = (PIMAGE_DOS_HEADER)pFileBuff;
+    if (pDosHeader->e_magic != 'ZM')
     {
-      DWORD dwNameAddressRva = pAddressOfNames[i];
-      return (LPVOID)(Rva2Fa(dwNameAddressRva, m_lpFileBuff) + (char*)m_lpFileBuff);
+        return FILE_NOT_PE;
     }
-  }
-  return nullptr;
+    PIMAGE_NT_HEADERS pNtHeader = (PIMAGE_NT_HEADERS)((char*)pFileBuff + pDosHeader->e_lfanew);
+    if (pNtHeader->Signature != 'EP')
+    {
+        return FILE_NOT_PE;
+    }
+
+    return FILE_IS_PE;
+}
+
+
+int CMyPe::IsPeFile(const char* strFilePath)
+{
+    if (strFilePath == NULL) 
+        return FIlE_OPEN_FAILD;
+
+    // æ‰“å¼€æ–‡ä»¶
+    HANDLE hFile = ::CreateFile(strFilePath,            // æ–‡ä»¶è·¯å¾„
+                                GENERIC_READ | GENERIC_WRITE,  // æ–‡ä»¶çš„æ‰“å¼€æ–¹å¼
+                                FILE_SHARE_READ,        // å…±äº«æ¨¡å¼ï¼Œå…¶ä»–æ–‡ä»¶å¯è¯»
+                                NULL,                   // å®‰å…¨å±æ€§ï¼Œç”¨äºç¡®å®šè¿”å›çš„å¥æŸ„æ˜¯å¦å¯ä»¥è¢«å­è¿›ç¨‹ç»§æ‰¿
+                                OPEN_EXISTING,          // æ‰“å¼€æ–¹å¼
+                                FILE_ATTRIBUTE_NORMAL,  // æ–‡ä»¶å±æ€§
+                                NULL);
+    if (hFile == INVALID_HANDLE_VALUE)
+    {
+        return FIlE_OPEN_FAILD;
+    }
+
+    // è·å–MZæ ‡å¿—
+    WORD wMzMagic = 0;
+    DWORD dwNumberOfBytesRead = 0;
+    int nRet = ::ReadFile(hFile, &wMzMagic, sizeof(WORD), &dwNumberOfBytesRead, NULL);
+    if (nRet == 0) { goto OPENFAILD; }
+    if (wMzMagic != 'ZM') { goto NOTPE; }
+
+    // è·å–PEæ ‡å¿—
+    DWORD dwOffset = 0;
+    WORD wPeMagic = 0;
+    DWORD dwPtr = ::SetFilePointer(hFile, 0x3c, NULL, FILE_BEGIN);
+    if (dwPtr == INVALID_SET_FILE_POINTER) { goto OPENFAILD; }
+
+    nRet = ::ReadFile(hFile, &dwOffset, sizeof(DWORD), &dwNumberOfBytesRead, NULL);
+    if (nRet == 0) { goto OPENFAILD; }
+
+    dwPtr = ::SetFilePointer(hFile, dwOffset, NULL, FILE_BEGIN);
+    if (dwPtr == INVALID_SET_FILE_POINTER) { goto OPENFAILD; }
+
+    nRet = ::ReadFile(hFile, &wPeMagic, sizeof(wPeMagic), &dwNumberOfBytesRead, NULL);
+    if (nRet == 0) { goto OPENFAILD; }
+    if (wPeMagic != 'EP') { goto NOTPE; }
+
+    // å…³é—­æ–‡ä»¶
+    ::CloseHandle(hFile);
+    return FILE_IS_PE;
+
+OPENFAILD:
+    if (hFile != INVALID_HANDLE_VALUE)
+    {
+        ::CloseHandle(hFile);
+    }
+    return FIlE_OPEN_FAILD;
+
+NOTPE:
+    if (hFile != INVALID_HANDLE_VALUE)
+    {
+        ::CloseHandle(hFile);
+    }
+    return FILE_NOT_PE;
+}
+
+
+int CMyPe::WriteMemoryToFile(void* pFileBuff, int nFileSize, const char* strFilePath)
+{
+    if (pFileBuff == NULL || strFilePath == NULL) 
+        return FIlE_OPEN_FAILD;
+
+    // æ‰“å¼€æ–‡ä»¶
+    HANDLE hFile = ::CreateFile(strFilePath,            // æ–‡ä»¶è·¯å¾„
+                                GENERIC_WRITE,          // æ–‡ä»¶çš„æ‰“å¼€æ–¹å¼
+                                FILE_SHARE_READ,        // å…±äº«æ¨¡å¼ï¼Œå…¶ä»–æ–‡ä»¶å¯è¯»
+                                NULL,                   // å®‰å…¨å±æ€§ï¼Œç”¨äºç¡®å®šè¿”å›çš„å¥æŸ„æ˜¯å¦å¯ä»¥è¢«å­è¿›ç¨‹ç»§æ‰¿
+                                CREATE_ALWAYS,          // æ‰“å¼€æ–¹å¼
+                                FILE_ATTRIBUTE_NORMAL,  // æ–‡ä»¶å±æ€§
+                                NULL);
+    if (hFile == INVALID_HANDLE_VALUE)
+    {
+        return FIlE_OPEN_FAILD;
+    }
+
+    DWORD dwNumberOfBytesWritten = 0;
+    DWORD dwBytesToWrite = 0;
+    while (dwBytesToWrite != nFileSize)
+    {
+        if (!::WriteFile(hFile,
+            (char*)pFileBuff + dwBytesToWrite,
+            nFileSize - dwBytesToWrite,
+            &dwNumberOfBytesWritten, NULL))
+        {
+            ::CloseHandle(hFile);
+            return FIlE_WRITE_FAILD;
+        }
+        dwBytesToWrite += dwNumberOfBytesWritten;
+    }
+
+    ::FlushFileBuffers(hFile);
+    ::CloseHandle(hFile);
+    return FIlE_WRITE_SUC;
+}
+
+DWORD CMyPe::GetFileSize() 
+{
+    return m_dwFileSize;
+}
+
+
+LPVOID CMyPe::GetDosHeaderPointer() const
+{
+    return m_pDosHeader;
+}
+
+LPVOID CMyPe::GetNtHeaderPointer() const
+{
+    return m_pNtHeader;
+}
+
+LPVOID CMyPe::GetFileHeaderPointer() const
+{
+    return m_pFileHeader;
+}
+
+LPVOID CMyPe::GetOptionHeaderPointer() const
+{
+    return m_pOptionHeader;
+}
+
+LPVOID CMyPe::GetSectionHeaderPointer() const
+{
+    return m_pSectionHeader;
+}
+
+LPVOID CMyPe::GetExportDirectoryPointer() const
+{
+    return m_pExportDirectory;
+}
+
+DWORD CMyPe::GetExportDirectorySize() const
+{
+    return m_dwExportSize;
+}
+
+LPVOID CMyPe::GetImportDirectoryPointer() const
+{
+    return m_pImportDirectory;
+}
+
+LPVOID CMyPe::GetResourceDirectoryPointer() const
+{
+    return m_pResourceDirectory;
+}
+
+LPVOID CMyPe::GetRelocDirectoryPointer() const
+{
+    return m_pRelocDirectory;
+}
+
+DWORD CMyPe::GetRelocDirectorySize() const
+{
+    return m_dwRelocSize;
+}
+
+LPVOID CMyPe::GetTlsDirectoryPointer() const
+{
+    return m_pTlsDirectory;
+}
+
+WORD CMyPe::GetNumberOfSections() const
+{
+    return m_wNumberOfSections;
+}
+
+DWORD CMyPe::GetAddressOfEntryPoint() const
+{
+    return m_dwAddressOfEntryPoint;
+}
+
+DWORD CMyPe::GetImageBase() const
+{
+    return m_dwImageBase;
+}
+
+DWORD CMyPe::GetSectionAlignment() const
+{
+    return m_dwSectionAlignment;
+}
+
+DWORD CMyPe::GetFileAlignment() const
+{
+    return m_dwFileAlignment;
+}
+
+DWORD CMyPe::GetSizeOfImage() const
+{
+    return m_dwSizeOfImage;
+}
+
+DWORD CMyPe::GetSizeOfHeaders() const
+{
+    return m_dwSizeOfHeaders;
+}
+
+DWORD CMyPe::GetNumberOfRvaAndSizes() const
+{
+    return m_dwNumberOfRvaAndSizes;
 }
 
 
 /*
-º¯Êı¹¦ÄÜ£ºÍ¨¹ıº¯ÊıÃû³Æ/ĞòºÅ£¬»ñÈ¡º¯ÊıµØÖ·
-²ÎÊı£º
-  hInst£º     Ä£¿é¾ä±ú
-  lpProcName£ºº¯ÊıÃû³Æ/ĞòºÅ
-·µ»ØÖµ£º
-  ·µ»Ø²éÕÒµ½µÄº¯ÊıµØÖ·
+å‡½æ•°åŠŸèƒ½ï¼šPEä¸­çš„RVAè½¬æ¢æˆFA
+å‚æ•°ï¼š
+  dwRvaï¼š     æ•°æ®çš„RVA
+  lpFileBuffï¼šPEæ–‡ä»¶çš„æ¨¡å—åŸºå€
+è¿”å›å€¼ï¼š
+  æˆåŠŸè¿”å›æ•°æ®çš„FA
+  å¤±è´¥è¿”å›-1
 */
-LPVOID CMyPe::MyGetProcAddress(HMODULE hInst, LPCSTR lpProcName)
+DWORD CMyPe::Rva2Fa(DWORD dwRva, LPVOID lpFileBuff)
 {
-  PIMAGE_DOS_HEADER pDosHeader = (PIMAGE_DOS_HEADER)hInst;
-  PIMAGE_NT_HEADERS pNtHeader = (PIMAGE_NT_HEADERS)((char*)pDosHeader + pDosHeader->e_lfanew);
-  PIMAGE_FILE_HEADER pFileHeader = (PIMAGE_FILE_HEADER)(&pNtHeader->FileHeader);
-  PIMAGE_OPTIONAL_HEADER pOptionHeader = (PIMAGE_OPTIONAL_HEADER)(&pNtHeader->OptionalHeader);
-  PIMAGE_SECTION_HEADER pSectionHeader = (PIMAGE_SECTION_HEADER)((char*)pOptionHeader + pFileHeader->SizeOfOptionalHeader);
+    if (lpFileBuff == NULL) 
+        return -1;
 
-  DWORD dwExportTableRva = pOptionHeader->DataDirectory[IMAGE_DIRECTORY_ENTRY_EXPORT].VirtualAddress;
-  DWORD dwExportTableSize = pOptionHeader->DataDirectory[IMAGE_DIRECTORY_ENTRY_EXPORT].Size;
+    // PEæ ¼å¼è§£æ
+    PIMAGE_DOS_HEADER pDosHeader = (PIMAGE_DOS_HEADER)lpFileBuff;
+    PIMAGE_NT_HEADERS pNtHeader = (PIMAGE_NT_HEADERS)((char*)pDosHeader + pDosHeader->e_lfanew);
+    PIMAGE_FILE_HEADER pFileHeader = (PIMAGE_FILE_HEADER)(&pNtHeader->FileHeader);
+    PIMAGE_OPTIONAL_HEADER pOptionHeader = (PIMAGE_OPTIONAL_HEADER)(&pNtHeader->OptionalHeader);
+    PIMAGE_SECTION_HEADER pSectionHeader = (PIMAGE_SECTION_HEADER)((char*)pOptionHeader + pFileHeader->SizeOfOptionalHeader);
 
-  PIMAGE_EXPORT_DIRECTORY pExport = (PIMAGE_EXPORT_DIRECTORY)((char*)hInst + dwExportTableRva);
-  DWORD dwExportEnd = (DWORD)pExport + dwExportTableSize;
-  
-  // »ñÈ¡ÄÚ´æÖĞ£¬µ¼³ö±íÖĞÈı¸ö±í¸ñµÄµØÖ·
-  DWORD dwAddressOfFunctionsRva = pExport->AddressOfFunctions;
-  DWORD dwAddressOfNamesRva = pExport->AddressOfNames;
-  DWORD dwAddressOfNameOrdinalsRva = pExport->AddressOfNameOrdinals;
-  DWORD* pAddressOfFunctions = (DWORD*)(dwAddressOfFunctionsRva + (char*)hInst);
-  DWORD* pAddressOfNames = (DWORD*)(dwAddressOfNamesRva + (char*)hInst);
-  WORD*  pAddressOfNameOrdinals = (WORD*)(dwAddressOfNameOrdinalsRva + (char*)hInst);
-
-  DWORD dwIndex = -1;
-  // Ê×ÏÈÅĞ¶ÏÊÇÃû³Æ»¹ÊÇĞòºÅ,µÃµ½AddressOfFunctionsµÄË÷Òı
-  if (((DWORD)lpProcName & 0xFFFF0000) > 0)
-  {
-    // Ãû³Æ²éÑ¯£¬Ê×ÏÈ»ñÈ¡Ä¿±êÃû³ÆÔÚµ¼³öÃû³Æ±íÖĞµÄË÷Òı
-    // Ó¦¸ÃÊ¹ÓÃÆäËû²éÕÒËã·¨£¬´Ë´ÎÔİÊ±ÏÈÊ¹ÓÃ¼òµ¥µÄ×Ö·û´®±È½Ï
-    for (DWORD i = 0; i < pExport->NumberOfNames; ++i)
+    // åˆ¤æ–­RVAæ˜¯å¦æœ‰æ•ˆ,RVAæ˜¯ç›¸å¯¹äºæ¨¡å—åŸºå€çš„
+    DWORD dwImageBase = (DWORD)lpFileBuff;
+    DWORD dwVa = dwImageBase + dwRva;
+    if (dwVa < dwImageBase || dwVa >= dwImageBase + pOptionHeader->SizeOfImage)
     {
-      char* pName = (pAddressOfNames[i] + (char*)hInst);
-      if (strcmp(pName, lpProcName) == 0)
-      {
-        // ÕÒµ½Ä¿±ê×Ö·û´®£¬Í¬ÏÂ±êÈ¥·ÃÎÊÃû³ÆĞòºÅ±í£¬µÃµ½×îÖÕµÄË÷Òı
-        dwIndex = pAddressOfNameOrdinals[i];
-      }
+        return -1;
     }
-  }
-  else
-  {
-    // Ê¹ÓÃĞòºÅ²éÑ¯Ê±£¬the high-order word must be zero
-    dwIndex = ((DWORD)lpProcName & 0xFFFF) - pExport->Base;
-  }
 
-  if (dwIndex == -1)
-  {
-    return nullptr;
-  }
+    // éå†èŠ‚è¡¨ï¼Œè·å–FA
+    for (int i = 0; i < pFileHeader->NumberOfSections; ++i)
+    {
+        DWORD dwVirtualAddress = pSectionHeader->VirtualAddress;  // æ˜ å°„åˆ°å†…å­˜çš„åœ°å€ï¼ŒRVA
+        DWORD dwVirtualSize = pSectionHeader->Misc.VirtualSize;   // æ˜ å°„åˆ°å†…å­˜çš„æ•°æ®å¤§å°ï¼ŒOSä¼šå°†è¯¥å€¼å¯¹é½åç”³è¯·å†…å­˜
+        DWORD dwPointerToRawData = pSectionHeader->PointerToRawData; // æ–‡ä»¶ä¸­æ•°æ®çš„åç§»
+        DWORD dwSizeOfRawData = pSectionHeader->SizeOfRawData;    // æ–‡ä»¶ä¸­æ•°æ®å¯¹é½åå¤§å°
 
-  // ÅĞ¶ÏÊÇ·ñÎªµ¼³ö×ª·¢
-  DWORD dwProcAddr = (DWORD)(pAddressOfFunctions[dwIndex] + (char*)hInst);
-  if ((dwProcAddr >= (DWORD)pExport) && (dwProcAddr < dwExportEnd))
-  {
-    // Èç¹ûÊÇµ¼³ö×ª·¢£¬ÔòĞèÒªµİ¹é²éÕÒ£¬¶ÔÓ¦µÄµØÖ·±£´æµÄ×ª·¢µÄdllÃû³ÆºÍº¯ÊıÃû³Æ
-    char dllName[MAXBYTE] = { 0 };
-    __asm {
-        pushad;
-        mov esi, dwProcAddr;
-        lea edi, dllName;
-        mov ecx, MAXBYTE;
-        xor edx, edx;
-      LOOP_BEGIN:
-        mov dl, byte ptr ds : [esi] ;
-        cmp dl, 0x2e;
-        jz LOOP_END;
-        movsb;
-        loop LOOP_BEGIN;
-      LOOP_END:
-        inc esi;
-        mov dwProcAddr, esi;
-        popad;
+        if (dwRva >= dwVirtualAddress && dwRva < dwVirtualAddress + dwSizeOfRawData)
+        {
+            return dwRva - dwVirtualAddress + dwPointerToRawData;
+        }
+        pSectionHeader++;
     }
-    HMODULE hModule = ::LoadLibrary(dllName);  // ´Ë´¦¿ÉÓÅ»¯Îª²»Ê¹ÓÃAPI
-    return CMyPe::MyGetProcAddress(hModule, (char*)dwProcAddr); // µİ¹é²éÕÒ
-  }
-
-  return (void*)dwProcAddr;
+    return -1;
 }
-
 
 
 /*
-º¯Êı¹¦ÄÜ£ºÍ¨¹ıº¯ÊıµØÖ·»ñÈ¡º¯ÊıÃû³Æ/ĞòºÅ
-²ÎÊı£º
-  pfnAddr£ºÄ¿±êº¯ÊıµØÖ·
-·µ»ØÖµ£º
-  ·µ»Øº¯ÊıÃû³Æ»òĞòºÅ
+å‡½æ•°åŠŸèƒ½ï¼šè·å–æ•°æ®çš„å¯¹é½å€¼
+å‚æ•°ï¼š
+  dwDataSizeï¼šæ•°æ®çš„å¤§å°
+  dwAlignï¼š   è¦å¯¹é½çš„å¤§å°
+è¿”å›å€¼ï¼š
+  è¿”å›æ•°æ®çš„å¯¹é½å€¼
 */
-LPVOID CMyPe::MyGetProcFunName(LPVOID pfnAddr)
-{
-  /*
-  Ä£¿éĞÅÏ¢±í{
-    +0  //Ç°Ò»¸ö±íµÄµØÖ·
-    +4  //ºóÒ»¸ö±íµÄµØÖ·
-    +18 //µ±Ç°Ä£¿éµÄ»ùÖ· hInstance
-    +1C //Ä£¿éµÄÈë¿Úµã
-    +20 //SizeOfImage
-    +24 //Rtl¸ñÊ½µÄunicode×Ö·û´®£¬±£´æÁËÄ£¿éµÄÂ·¾¶
-  	    {
-    	    +0 //×Ö·û´®Êµ¼Ê³¤¶È
-          +2 //×Ö·û´®ËùÕ¼µÄ¿Õ¼ä´óĞ¡
-          +4 //unicode×Ö·û´®µÄµØÖ·
-  	    }
-    +2C //Rtl¸ñÊ½µÄunicode×Ö·û´®£¬±£´æÁËÄ£¿éµÄÃû³Æ
-  }
-  */
-  struct _LIST_ENTRY
-  {
-    struct _LIST_ENTRY* Flink;  //0x0
-    struct _LIST_ENTRY* Blink;  //0x4
-    int n1;    //0x8
-    int n2;    //0xC
-    int n3;    //0x10
-    int n4;    //0x14
-    HMODULE hInstance;      //0x18
-    void* pEntryPoint;      //0x1C
-    int nSizeOfImage;       //0x20
-
-    short sLengthOfPath;    //0x24
-    short sSizeOfPath;      //0x26
-    int* pUnicodePathName;  //0x28
-
-    short sLengthOfFile;    //0x2C
-    short sSizeOfFile;      //0x2E
-    int* pUnicodeFileName;  //0x30
-  };
-
-  _LIST_ENTRY* pCurNode = NULL;
-  _LIST_ENTRY* pPrevNode = NULL;
-  _LIST_ENTRY* pNextNode = NULL;
-
-  // Í¨¹ıTEB»ñÈ¡Ä£¿éĞÅÏ¢±í
-  __asm {
-    pushad;
-    mov eax, fs: [0x18] ;   //teb
-    mov eax, [eax + 0x30];  //peb
-    mov eax, [eax + 0x0c];  //_PEB_LDR_DATA
-    mov eax, [eax + 0x0c];  //Ä£¿éĞÅÏ¢±í_LIST_ENTRY,Ö÷Ä£¿é
-    mov pCurNode, eax;
-    mov ebx, dword ptr [eax];
-    mov pPrevNode, ebx;
-    mov ebx, dword ptr[eax + 0x4];
-    mov pNextNode, ebx;
-    popad;
-  }
-  
-  if (pCurNode == NULL || pPrevNode == NULL || pNextNode == NULL)
-  {
-    return NULL;
-  }
-
-  // ±éÀúÄ£¿éĞÅÏ¢±í£¬ÔÚÄ£¿éµÄµ¼³ö±íÖĞ²éÕÒ
-  HMODULE hModule = NULL;
-  _LIST_ENTRY* pTmp = NULL;
-  int nSizeOfImage = 0;
-  while (pCurNode != pPrevNode)
-  {
-    hModule = pCurNode->hInstance;
-    nSizeOfImage = pCurNode->nSizeOfImage;
-    if (((DWORD)pfnAddr > (DWORD)hModule) &&
-       ((DWORD)pfnAddr < (DWORD)hModule + nSizeOfImage))
-    {
-      // ÕÒµ½º¯ÊıµØÖ·ËùÔÚµÄÄ£¿é£¬ÔÙ½øĞĞµ¼³ö±í½âÎö
-      PIMAGE_DOS_HEADER pDosHeader = (PIMAGE_DOS_HEADER)hModule;
-      PIMAGE_NT_HEADERS pNtHeader = (PIMAGE_NT_HEADERS)((char*)pDosHeader + pDosHeader->e_lfanew);
-      PIMAGE_FILE_HEADER pFileHeader = (PIMAGE_FILE_HEADER)(&pNtHeader->FileHeader);
-      PIMAGE_OPTIONAL_HEADER pOptionHeader = (PIMAGE_OPTIONAL_HEADER)(&pNtHeader->OptionalHeader);
-
-      DWORD dwExportTableRva  = pOptionHeader->DataDirectory[IMAGE_DIRECTORY_ENTRY_EXPORT].VirtualAddress;
-      PIMAGE_EXPORT_DIRECTORY pExport = (PIMAGE_EXPORT_DIRECTORY)((char*)hModule + dwExportTableRva);
-
-      // »ñÈ¡ÄÚ´æÖĞ£¬µ¼³ö±íÖĞÈı¸ö±í¸ñµÄµØÖ·
-      DWORD dwAddressOfFunctionsRva = pExport->AddressOfFunctions;
-      DWORD dwAddressOfNamesRva = pExport->AddressOfNames;
-      DWORD dwAddressOfNameOrdinalsRva = pExport->AddressOfNameOrdinals;
-      DWORD* pAddressOfFunctions = (DWORD*)(dwAddressOfFunctionsRva + (char*)hModule);
-      DWORD* pAddressOfNames = (DWORD*)(dwAddressOfNamesRva + (char*)hModule);
-      WORD*  pAddressOfNameOrdinals = (WORD*)(dwAddressOfNameOrdinalsRva + (char*)hModule);
-
-      // Ê×ÏÈ»ñÈ¡º¯ÊıµØÖ·ÔÚµ¼³öµØÖ·±íÖĞµÄË÷Òı
-      DWORD dwIndex = -1;
-      for (DWORD i = 0; i < pExport->NumberOfFunctions; ++i)
-      {
-        if ((pAddressOfFunctions[i] + (char*)hModule) == pfnAddr)
-        {
-          dwIndex = i;
-          break;
-        }
-      }
-      if (dwIndex == -1) return NULL;
-
-      // ²éÕÒË÷ÒıÔÚÃû³ÆĞòºÅ±íÖĞÊÇ·ñ´æÔÚ£¬´æÔÚÔò±íÊ¾ÊÇÃû³Æµ¼³ö£¬·ñÔòÊÇĞòºÅµ¼³ö
-      for (DWORD i = 0; i < pExport->NumberOfNames; ++i)
-      {
-        if (pAddressOfNameOrdinals[i] == dwIndex)
-        {
-          return pAddressOfNames[i] + (char*)hModule;
-        }
-      }
-      return (LPVOID)(dwIndex + pExport->Base);
-    }
-
-    pTmp = pPrevNode;
-    pCurNode = pTmp;
-    pPrevNode = pTmp->Flink;
-    pNextNode = pTmp->Blink;
-  }
-  return NULL;
-}
-
 DWORD CMyPe::GetAlignSize(DWORD dwDataSize, DWORD dwAlign)
 {
-  if (dwDataSize == 0) return 0;
-  DWORD dwMod = dwDataSize % dwAlign;
-  if (dwMod == 0)
-  {
-    return dwDataSize;
-  }
-  return (dwMod + 1) * dwAlign;
+    if (dwDataSize == 0)
+        return 0;
+
+    if (dwDataSize % dwAlign == 0)
+    {
+        return dwDataSize;
+    }
+    return (dwDataSize / dwAlign + 1) * dwAlign;
 }
 
+
 /*
-º¯Êı¹¦ÄÜ£ºĞÂÔö½Ú±í
-²ÎÊı£º
-  lpOldFileBuff£ºPEÎÄ¼şµÄÄÚ´æµØÖ·
-  dwOldFileSize£ºPEÎÄ¼şµÄÔ­Ê¼´óĞ¡
-  lpDataBuff   £ºĞÂÔö½Ú±íµÄÊı¾İ
-  dwDataSize   £ºĞÂÔö½Ú±íµÄÊı¾İµÄ´óĞ¡
-·µ»ØÖµ£º
-  ĞÂÔö½Ú±í³É¹¦ºó£¬PEÎÄ¼şĞÂµÄÄÚ´æµØÖ·
-×¢Òâ£º
-  dwDataSize = 0 Ê±£¬Ôö¼ÓÒ»¸öÃ»ÓĞÎÄ¼şÓ³ÉäµÄ½Ú
+å‡½æ•°åŠŸèƒ½ï¼šæ–°å¢èŠ‚è¡¨
+å‚æ•°ï¼š
+  lpOldFileBuffï¼šPEæ–‡ä»¶çš„å†…å­˜åœ°å€
+  dwOldFileSizeï¼šPEæ–‡ä»¶çš„åŸå§‹å¤§å°
+  lpDataBuff   ï¼šæ–°å¢èŠ‚è¡¨çš„æ•°æ®
+  dwDataSize   ï¼šæ–°å¢èŠ‚è¡¨çš„æ•°æ®çš„å¤§å°
+è¿”å›å€¼ï¼š
+  æˆåŠŸPEæ–‡ä»¶æ–°çš„å†…å­˜åœ°å€
+  å¤±è´¥è¿”å›NULL
+æ³¨æ„ï¼š
+  dwDataSize = 0æ—¶ï¼Œè¡¨ç¤ºå¢åŠ ä¸€ä¸ªæ²¡æœ‰æ–‡ä»¶æ˜ å°„çš„èŠ‚
+  è¿”å›çš„å†…å­˜åœ°å€æ˜¯mallocç”³è¯·çš„ï¼Œä½¿ç”¨å®Œè®°å¾—è°ƒç”¨free
 */
 LPVOID CMyPe::AddSection(LPVOID lpOldFileBuff, DWORD dwOldFileSize, LPVOID lpDataBuff, DWORD dwDataSize)
 {
-  // PE¸ñÊ½½âÎö
-  PIMAGE_DOS_HEADER pDosHeader = (PIMAGE_DOS_HEADER)lpOldFileBuff;
-  PIMAGE_NT_HEADERS pNtHeader = (PIMAGE_NT_HEADERS)((char*)pDosHeader + pDosHeader->e_lfanew);
-  PIMAGE_FILE_HEADER pFileHeader = (PIMAGE_FILE_HEADER)(&pNtHeader->FileHeader);
-  PIMAGE_OPTIONAL_HEADER pOptionHeader = (PIMAGE_OPTIONAL_HEADER)(&pNtHeader->OptionalHeader);
-  PIMAGE_SECTION_HEADER pSectionHeader = (PIMAGE_SECTION_HEADER)((char*)pOptionHeader + pFileHeader->SizeOfOptionalHeader);
+    if (lpOldFileBuff == NULL) 
+        return NULL;
 
-  // ¼ÆËãĞÂÎÄ¼şµÄ´óĞ¡
-  DWORD dwNewFileSize = dwOldFileSize + GetAlignSize(dwDataSize, pOptionHeader->FileAlignment);
+    // PEæ ¼å¼è§£æ
+    PIMAGE_DOS_HEADER pDosHeader = (PIMAGE_DOS_HEADER)lpOldFileBuff;
+    PIMAGE_NT_HEADERS pNtHeader = (PIMAGE_NT_HEADERS)((char*)pDosHeader + pDosHeader->e_lfanew);
+    PIMAGE_FILE_HEADER pFileHeader = (PIMAGE_FILE_HEADER)(&pNtHeader->FileHeader);
+    PIMAGE_OPTIONAL_HEADER pOptionHeader = (PIMAGE_OPTIONAL_HEADER)(&pNtHeader->OptionalHeader);
+    PIMAGE_SECTION_HEADER pSectionHeader = (PIMAGE_SECTION_HEADER)((char*)pOptionHeader + pFileHeader->SizeOfOptionalHeader);
 
-  // ÉêÇëĞÂµÄÄÚ´æ£¬½«¾ÉµÄÎÄ¼şÄÚ´æºÍĞÂÔö½Ú±íÊı¾İ¿½±´¹ıÈ¥
-  LPVOID lpNewFileBuff = malloc(dwNewFileSize);
-  if (lpNewFileBuff == NULL)
-  {
-    return NULL;
-  }
-  ::RtlZeroMemory(lpNewFileBuff, dwNewFileSize);
+    // è®¡ç®—æ–°æ–‡ä»¶çš„å¤§å°
+    DWORD dwNewFileSize = dwOldFileSize + GetAlignSize(dwDataSize, pOptionHeader->FileAlignment);
 
-  memcpy(lpNewFileBuff, lpOldFileBuff, dwOldFileSize);
-  if (lpDataBuff != NULL) 
-  {
-    memcpy(((char*)lpNewFileBuff + dwOldFileSize), lpDataBuff, dwDataSize);
-  }
- 
-  // ¼ì²éPEÍ·ÊÇ·ñÓĞ×ã¹»¿Õ¼äÔö¼Ó½Ú±íÏî
-  PIMAGE_DOS_HEADER pNewDosHeader = (PIMAGE_DOS_HEADER)lpNewFileBuff;
-  PIMAGE_NT_HEADERS pNewNtHeader = (PIMAGE_NT_HEADERS)((char*)pNewDosHeader + pNewDosHeader->e_lfanew);
-  PIMAGE_FILE_HEADER pNewFileHeader = (PIMAGE_FILE_HEADER)(&pNewNtHeader->FileHeader);
-  PIMAGE_OPTIONAL_HEADER pNewOptionHeader = (PIMAGE_OPTIONAL_HEADER)(&pNewNtHeader->OptionalHeader);
-  PIMAGE_SECTION_HEADER pNewSectionHeader = (PIMAGE_SECTION_HEADER)((char*)pNewOptionHeader + pNewFileHeader->SizeOfOptionalHeader);
+    // ç”³è¯·æ–°çš„å†…å­˜ï¼Œå°†æ—§çš„æ–‡ä»¶å†…å­˜å’Œæ–°å¢èŠ‚è¡¨æ•°æ®æ‹·è´è¿‡å»
+    LPVOID lpNewFileBuff = malloc(dwNewFileSize);
+    if (lpNewFileBuff == NULL)
+    {
+        return NULL;
+    }
+    ::RtlZeroMemory(lpNewFileBuff, dwNewFileSize);
 
-  DWORD dwReserved = pNewOptionHeader->SizeOfHeaders - 
-                    ((DWORD)pNewSectionHeader + pNewFileHeader->NumberOfSections * 0x28 - (DWORD)pNewDosHeader);
-  if (dwReserved < 0x28)
-  {
-    // ¿Õ¼ä²»×ãÊ±£¬¿ÉÒÔÑ¡ÔñÊı¾İÉÏÒÆ£¬Õ¼ÓÃDOS StubµÄ¿Õ¼ä
-    free(lpNewFileBuff);
-    return NULL;
-  }
+    memcpy(lpNewFileBuff, lpOldFileBuff, dwOldFileSize);
+    if (lpDataBuff != NULL && dwDataSize != 0)
+    {
+        memcpy(((char*)lpNewFileBuff + dwOldFileSize), lpDataBuff, dwDataSize);
+    }
 
-  // ¼ì²éĞÂÔö½Ú±íÏîµÄÎ»ÖÃ£¬Êı¾İÊÇ·ñÎª0
-  IMAGE_SECTION_HEADER structAddSection = { 0 };
-  PIMAGE_SECTION_HEADER pAddSectionHeader = pNewSectionHeader + pNewFileHeader->NumberOfSections;
-  if (memcmp(pAddSectionHeader, &structAddSection, sizeof(IMAGE_SECTION_HEADER)) != NULL)
-  {
-    // ¿ÉÄÜ»á¸²¸ÇÊı¾İÊ±£¬Ò²¿ÉÒÔÑ¡ÔñÊı¾İÉÏÒÆ£¬Õ¼ÓÃDOS StubµÄ¿Õ¼ä
-    free(lpNewFileBuff);
-    return NULL;
-  }
+    // æ£€æŸ¥PEå¤´æ˜¯å¦æœ‰è¶³å¤Ÿç©ºé—´å¢åŠ èŠ‚è¡¨é¡¹
+    PIMAGE_DOS_HEADER pNewDosHeader = (PIMAGE_DOS_HEADER)lpNewFileBuff;
+    PIMAGE_NT_HEADERS pNewNtHeader = (PIMAGE_NT_HEADERS)((char*)pNewDosHeader + pNewDosHeader->e_lfanew);
+    PIMAGE_FILE_HEADER pNewFileHeader = (PIMAGE_FILE_HEADER)(&pNewNtHeader->FileHeader);
+    PIMAGE_OPTIONAL_HEADER pNewOptionHeader = (PIMAGE_OPTIONAL_HEADER)(&pNewNtHeader->OptionalHeader);
+    PIMAGE_SECTION_HEADER pNewSectionHeader = (PIMAGE_SECTION_HEADER)((char*)pNewOptionHeader + pNewFileHeader->SizeOfOptionalHeader);
 
-  // ¹¹ÔìĞÂµÄ½Ú±íÏî
-  DWORD dwLastSectionHeaderIndex = pNewFileHeader->NumberOfSections - 1;
-  structAddSection.Misc.VirtualSize = GetAlignSize(dwDataSize, pOptionHeader->SectionAlignment);
-  structAddSection.VirtualAddress = pNewSectionHeader[dwLastSectionHeaderIndex].VirtualAddress +
-    GetAlignSize(pNewSectionHeader[dwLastSectionHeaderIndex].Misc.VirtualSize, pOptionHeader->SectionAlignment);
+    DWORD dwReserved = pNewOptionHeader->SizeOfHeaders -
+        ((DWORD)pNewSectionHeader + pNewFileHeader->NumberOfSections * 0x28 - (DWORD)pNewDosHeader);
+    if (dwReserved < 0x28)
+    {
+        // ç©ºé—´ä¸è¶³æ—¶ï¼Œå¯ä»¥é€‰æ‹©æ•°æ®ä¸Šç§»ï¼Œå ç”¨DOS Stubçš„ç©ºé—´
+        free(lpNewFileBuff);
+        return NULL;
+    }
 
-  structAddSection.SizeOfRawData = GetAlignSize(dwDataSize, pOptionHeader->FileAlignment);
-  structAddSection.PointerToRawData = pNewSectionHeader[dwLastSectionHeaderIndex].PointerToRawData +
-    GetAlignSize(pNewSectionHeader[dwLastSectionHeaderIndex].SizeOfRawData, pOptionHeader->FileAlignment);
+    // æ£€æŸ¥æ–°å¢èŠ‚è¡¨é¡¹çš„ä½ç½®ï¼Œæ•°æ®æ˜¯å¦ä¸º0
+    IMAGE_SECTION_HEADER structAddSection = { 0 };
+    PIMAGE_SECTION_HEADER pAddSectionHeader = pNewSectionHeader + pNewFileHeader->NumberOfSections;
+    if (memcmp(pAddSectionHeader, &structAddSection, sizeof(IMAGE_SECTION_HEADER)) != NULL)
+    {
+        // å¯èƒ½ä¼šè¦†ç›–æ•°æ®æ—¶ï¼Œä¹Ÿå¯ä»¥é€‰æ‹©æ•°æ®ä¸Šç§»ï¼Œå ç”¨DOS Stubçš„ç©ºé—´
+        free(lpNewFileBuff);
+        return NULL;
+    }
 
-  // ¿½±´ĞÂ½Ú±íÏîµ½½Ú±íÄ©Î²
-  memcpy(pAddSectionHeader, &structAddSection, sizeof(IMAGE_SECTION_HEADER));
-  
-  // ĞŞ¸ÄPEÖĞÏà¹Ø×Ö¶Î£ºSizeOfImage NumberOfSections
-  pNewOptionHeader->SizeOfImage = pAddSectionHeader->VirtualAddress + pAddSectionHeader->Misc.VirtualSize;
-  pNewFileHeader->NumberOfSections += 1;
+    // æ„é€ æ–°çš„èŠ‚è¡¨é¡¹
+    DWORD dwLastSectionHeaderIndex = pNewFileHeader->NumberOfSections - 1;
+    structAddSection.Misc.VirtualSize = GetAlignSize(dwDataSize, pOptionHeader->SectionAlignment);
+    structAddSection.VirtualAddress = pNewSectionHeader[dwLastSectionHeaderIndex].VirtualAddress +
+        GetAlignSize(pNewSectionHeader[dwLastSectionHeaderIndex].Misc.VirtualSize, pOptionHeader->SectionAlignment);
 
-  return lpNewFileBuff;
+    structAddSection.SizeOfRawData = GetAlignSize(dwDataSize, pOptionHeader->FileAlignment);
+    structAddSection.PointerToRawData = pNewSectionHeader[dwLastSectionHeaderIndex].PointerToRawData +
+        GetAlignSize(pNewSectionHeader[dwLastSectionHeaderIndex].SizeOfRawData, pOptionHeader->FileAlignment);
+
+    // æ‹·è´æ–°èŠ‚è¡¨é¡¹åˆ°èŠ‚è¡¨æœ«å°¾
+    memcpy(pAddSectionHeader, &structAddSection, sizeof(IMAGE_SECTION_HEADER));
+
+    // ä¿®æ”¹PEä¸­ç›¸å…³å­—æ®µï¼šSizeOfImage NumberOfSections
+    pNewOptionHeader->SizeOfImage = pAddSectionHeader->VirtualAddress + pAddSectionHeader->Misc.VirtualSize;
+    pNewFileHeader->NumberOfSections += 1;
+
+    return lpNewFileBuff;
 }
 
 
 /*
-º¯Êı¹¦ÄÜ£ºµ¼Èë±í×¢Èë
-²ÎÊı£º
-  lpFileBuff£ºPEÎÄ¼şµÄÄÚ´æµØÖ·
-  lpDllName £º×¢ÈëµÄdllÃû³Æ
-  lpProcName£º×¢ÈëµÄº¯ÊıÃû³Æ
-·µ»ØÖµ£º
-  ×¢Èë³É¹¦ºó£¬PEÎÄ¼şĞÂµÄÄÚ´æµØÖ·
+å‡½æ•°åŠŸèƒ½ï¼šé€šè¿‡æ¨¡å—å¥æŸ„è·å–æ¨¡å—åç§°
+å‚æ•°ï¼š
+  hInstï¼šç›®æ ‡æ¨¡å—å¥æŸ„
+  lpModuleNameï¼šç”¨æ¥è¿”å›æ‰¾åˆ°çš„æ¨¡å—åç§°
+è¿”å›å€¼ï¼š
+  é€šè¿‡å‚æ•°è¿”å›ç›®æ ‡æ¨¡å—çš„åç§°
+*/
+void CMyPe::MyGetModuleName(HMODULE hInst, OUT LPSTR lpModuleName)
+{
+    if (hInst == NULL)
+        return;
+
+    MY_LIST_ENTRY* pCurNode = NULL;
+    MY_LIST_ENTRY* pPrevNode = NULL;
+    MY_LIST_ENTRY* pNextNode = NULL;
+    MY_LIST_ENTRY* pFirstNode = NULL;
+
+    // é€šè¿‡TEBè·å–æ¨¡å—ä¿¡æ¯è¡¨
+    __asm {
+        pushad;
+        mov eax, fs: [0x18] ;   //teb
+        mov eax, [eax + 0x30];  //peb
+        mov eax, [eax + 0x0c];  //_PEB_LDR_DATA
+        mov eax, [eax + 0x0c];  //æ¨¡å—ä¿¡æ¯è¡¨_LIST_ENTRY,ä¸»æ¨¡å—
+        mov pCurNode, eax;
+        mov ebx, dword ptr[eax];
+        mov pPrevNode, ebx;
+        mov ebx, dword ptr[eax + 0x4];
+        mov pNextNode, ebx;
+        popad;
+    }
+
+    pFirstNode = pCurNode;
+    if (pCurNode == NULL || pPrevNode == NULL || pNextNode == NULL)
+    {
+        return;
+    }
+
+    // éå†æ¨¡å—ä¿¡æ¯è¡¨
+    MY_LIST_ENTRY* pTmp = NULL;
+    while (pPrevNode != pFirstNode)
+    {
+        if (hInst == pCurNode->hInstance)
+        {
+            // æ‰¾åˆ°äº†ç›®æ ‡æ¨¡å—çš„èŠ‚ç‚¹
+            Pascal2CStr(lpModuleName, (char*)pCurNode->pUnicodeFileName, pCurNode->sLengthOfFile);
+            return;
+        }
+
+        pTmp = pPrevNode;
+        pCurNode = pTmp;
+        pPrevNode = pTmp->Flink;
+        pNextNode = pTmp->Blink;
+    }
+}
+
+
+
+/*
+å‡½æ•°åŠŸèƒ½ï¼šé€šè¿‡æ¨¡å—å¥æŸ„è·å–æ¨¡å—è·¯å¾„
+å‚æ•°ï¼š
+  hInstï¼šç›®æ ‡æ¨¡å—å¥æŸ„
+  lpModulePathï¼šç”¨æ¥è¿”å›æ‰¾åˆ°çš„æ¨¡å—è·¯å¾„
+è¿”å›å€¼ï¼š
+  é€šè¿‡å‚æ•°è¿”å›ç›®æ ‡æ¨¡å—çš„è·¯å¾„
+*/
+void CMyPe::MyGetModulePath(HMODULE hInst, OUT LPSTR lpModulePath)
+{
+    if (hInst == NULL)
+        return;
+
+    MY_LIST_ENTRY* pCurNode = NULL;
+    MY_LIST_ENTRY* pPrevNode = NULL;
+    MY_LIST_ENTRY* pNextNode = NULL;
+    MY_LIST_ENTRY* pFirstNode = NULL;
+
+    // é€šè¿‡TEBè·å–æ¨¡å—ä¿¡æ¯è¡¨
+    __asm {
+        pushad;
+        mov eax, fs: [0x18] ;   //teb
+        mov eax, [eax + 0x30];  //peb
+        mov eax, [eax + 0x0c];  //_PEB_LDR_DATA
+        mov eax, [eax + 0x0c];  //æ¨¡å—ä¿¡æ¯è¡¨_LIST_ENTRY,ä¸»æ¨¡å—
+        mov pCurNode, eax;
+        mov ebx, dword ptr[eax];
+        mov pPrevNode, ebx;
+        mov ebx, dword ptr[eax + 0x4];
+        mov pNextNode, ebx;
+        popad;
+    }
+
+    pFirstNode = pCurNode;
+    if (pCurNode == NULL || pPrevNode == NULL || pNextNode == NULL)
+    {
+        return;
+    }
+
+    // éå†æ¨¡å—ä¿¡æ¯è¡¨
+    MY_LIST_ENTRY* pTmp = NULL;
+    while (pPrevNode != pFirstNode)
+    {
+        if (hInst == pCurNode->hInstance)
+        {
+            // æ‰¾åˆ°äº†ç›®æ ‡æ¨¡å—çš„èŠ‚ç‚¹
+            Pascal2CStr(lpModulePath, (char*)pCurNode->pUnicodePathName, pCurNode->sLengthOfPath);
+            return;
+        }
+
+        pTmp = pPrevNode;
+        pCurNode = pTmp;
+        pPrevNode = pTmp->Flink;
+        pNextNode = pTmp->Blink;
+    }
+}
+
+
+
+/*
+å‡½æ•°åŠŸèƒ½ï¼šé€šè¿‡æ¨¡å—åç§°/æ¨¡å—è·¯å¾„è·å–æ¨¡å—å¥æŸ„
+å‚æ•°ï¼š
+  lpModuleNameï¼šæ¨¡å—åç§°/æ¨¡å—è·¯å¾„
+è¿”å›å€¼ï¼š
+  æˆåŠŸè¿”å›æ¨¡å—å¥æŸ„
+  å¤±è´¥è¿”å›NULL
+*/
+LPVOID CMyPe::MyGetModuleBase(LPCSTR lpModuleName)
+{
+    if (lpModuleName == NULL)
+        return NULL;
+
+    MY_LIST_ENTRY* pCurNode = NULL;
+    MY_LIST_ENTRY* pPrevNode = NULL;
+    MY_LIST_ENTRY* pNextNode = NULL;
+    MY_LIST_ENTRY* pFirstNode = NULL;
+
+    // é€šè¿‡TEBè·å–æ¨¡å—ä¿¡æ¯è¡¨
+    __asm {
+        pushad;
+        mov eax, fs: [0x18] ;   //teb
+        mov eax, [eax + 0x30];  //peb
+        mov eax, [eax + 0x0c];  //_PEB_LDR_DATA
+        mov eax, [eax + 0x0c];  //æ¨¡å—ä¿¡æ¯è¡¨_LIST_ENTRY,ä¸»æ¨¡å—
+        mov pCurNode, eax;
+        mov ebx, dword ptr[eax];
+        mov pPrevNode, ebx;
+        mov ebx, dword ptr[eax + 0x4];
+        mov pNextNode, ebx;
+        popad;
+    }
+
+    pFirstNode = pCurNode;
+    if (pCurNode == NULL || pPrevNode == NULL || pNextNode == NULL)
+    {
+        return NULL;
+    }
+
+    // æ¨¡å—åè½¬æ¢æˆPascalå­—ç¬¦ä¸²
+    int nLen = MyStrLen(lpModuleName);
+    char* pDst = (char*)malloc(nLen * 2);
+    ::RtlZeroMemory(pDst, nLen * 2);
+    CStr2Pascal(pDst, lpModuleName, nLen);
+
+    // éå†æ¨¡å—ä¿¡æ¯è¡¨
+    MY_LIST_ENTRY* pTmp = NULL;
+    while (pPrevNode != pFirstNode)
+    {
+        // æ¯”è¾ƒæ¨¡å—åç§°
+        if (MyMemCmp(pDst, pCurNode->pUnicodeFileName, nLen * 2) == 0 && (nLen * 2) == pCurNode->sLengthOfFile)
+        {
+            free(pDst);
+            return pCurNode->hInstance;
+        }
+
+        // æ¯”è¾ƒæ¨¡å—è·¯å¾„
+        if (MyMemCmp(pDst, pCurNode->pUnicodePathName, nLen * 2) == 0 && (nLen * 2) == pCurNode->sLengthOfPath)
+        {
+            free(pDst);
+            return pCurNode->hInstance;
+        }
+
+        pTmp = pPrevNode;
+        pCurNode = pTmp;
+        pPrevNode = pTmp->Flink;
+        pNextNode = pTmp->Blink;
+    }
+
+    if (pDst != NULL)
+    {
+        free(pDst);
+    }
+
+    return NULL;
+}
+
+
+/*
+å‡½æ•°åŠŸèƒ½ï¼šè‡ªå®ç°çš„LoadLibrary
+å‚æ•°ï¼š
+  lpModulePathï¼šæ¨¡å—è·¯å¾„
+è¿”å›å€¼ï¼š
+  æˆåŠŸè¿”å›æ¨¡å—å¥æŸ„
+  å¤±è´¥è¿”å›NULL
+*/
+LPVOID CMyPe::MyLoadLibrary(LPCSTR lpModulePath)
+{
+    HANDLE hFile = INVALID_HANDLE_VALUE;
+    HANDLE hFileMap = NULL;
+    LPVOID lpFileBuff = NULL;
+    IMAGE_IMPORT_DESCRIPTOR ZeroImport = { 0 };
+    DWORD dwRelocSize = 0;
+    DWORD dwAddressOfEntryPoint = 0;
+    //typedef int(__stdcall *PFN_DLLMAIN)(HMODULE, int, int);
+
+    if (lpModulePath == NULL)
+        return NULL;
+
+    // å…ˆåœ¨æ¨¡å—åˆ—è¡¨ä¸­æŸ¥æ‰¾æ¨¡å—æ˜¯å¦å·²ç»åŠ è½½
+    HMODULE hInst = (HMODULE)CMyPe::MyGetModuleBase(lpModulePath);
+    if (hInst != NULL)
+    {
+        return hInst;
+    }
+
+    // LoadDll
+    // æ£€æŸ¥æ˜¯å¦ä¸ºPEæ ¼å¼
+    if (IsPeFile(lpModulePath) != FILE_IS_PE)
+    {
+        return NULL;
+    }
+
+    // æ‰“å¼€æ–‡ä»¶
+    hFile = ::CreateFile(lpModulePath,           // æ–‡ä»¶è·¯å¾„
+                         GENERIC_READ | GENERIC_WRITE,  // æ–‡ä»¶çš„æ‰“å¼€æ–¹å¼
+                         FILE_SHARE_READ,        // å…±äº«æ¨¡å¼ï¼Œå…¶ä»–æ–‡ä»¶å¯è¯»
+                         NULL,                   // å®‰å…¨å±æ€§ï¼Œç”¨äºç¡®å®šè¿”å›çš„å¥æŸ„æ˜¯å¦å¯ä»¥è¢«å­è¿›ç¨‹ç»§æ‰¿
+                         OPEN_EXISTING,          // æ‰“å¼€æ–¹å¼
+                         FILE_ATTRIBUTE_NORMAL,  // æ–‡ä»¶å±æ€§
+                         NULL);
+    if (hFile == INVALID_HANDLE_VALUE)
+    {
+        return NULL;
+    }
+
+    // è·å–æ–‡ä»¶å¤§å°
+    DWORD dwFileSize = ::GetFileSize(hFile, NULL);
+
+    // åˆ›å»ºæ–‡ä»¶æ˜ å°„å¯¹è±¡
+    hFileMap = ::CreateFileMapping(hFile,     // æ–‡ä»¶å¥æŸ„
+                                   NULL,      // å®‰å…¨å±æ€§ï¼Œç”¨äºç¡®å®šè¿”å›çš„å¥æŸ„æ˜¯å¦å¯ä»¥è¢«å­è¿›ç¨‹ç»§æ‰¿
+                                   PAGE_READWRITE, // æ˜ å°„åå†…å­˜é¡µçš„å†…å­˜å±æ€§
+                                   NULL,      // å¤§äº4Gæ—¶è®¾ç½®
+                                   dwFileSize,// æ˜ å°„å¤§å°
+                                   NULL);     // æ–‡ä»¶æ˜ å°„å¯¹è±¡çš„åç§°ï¼Œè®¾ç½®åå¯ç”¨äºè¿›ç¨‹é—´é€šä¿¡
+    if (hFileMap == NULL)
+    {
+        goto EXIT_PROC;
+    }
+
+    // å°†æ–‡ä»¶æ˜ å°„åˆ°å†…å­˜
+    lpFileBuff = ::MapViewOfFile(hFileMap, FILE_MAP_ALL_ACCESS, 0, 0, 0);
+    if (lpFileBuff == NULL) {
+        goto EXIT_PROC;
+    }
+
+    // PE æ ¼å¼è§£æ
+    CMyPe* pDll = new CMyPe(lpFileBuff);
+    DWORD dwSizeOfImage = pDll->GetSizeOfImage();
+    
+    // ç”³è¯·å†…å­˜ç©ºé—´ï¼Œå¯ä»¥é€šè¿‡æ¨¡å—ä¿¡æ¯è¡¨è·å–å‡½æ•°åœ°å€
+    LPVOID lpDllBuff = ::VirtualAlloc(NULL, dwSizeOfImage, MEM_COMMIT, PAGE_EXECUTE_READWRITE);
+    if (lpDllBuff == NULL) {
+        goto EXIT_PROC;
+    }
+
+    // æ‹·è´PEå¤´
+    MyMemCopy(lpDllBuff, pDll->GetDosHeaderPointer(), pDll->GetSizeOfHeaders());
+
+    // æ‹‰ä¼¸èŠ‚è¡¨
+    PIMAGE_SECTION_HEADER pSection = (PIMAGE_SECTION_HEADER)pDll->GetSectionHeaderPointer();
+    for (int i = 0; i < pDll->GetNumberOfSections(); ++i) 
+    {
+        // åˆ¤æ–­æ˜¯æœ‰æ–‡ä»¶æ˜ å°„
+        if (pSection[i].SizeOfRawData != 0) 
+        {
+            MyMemCopy((char*)lpDllBuff + pSection[i].VirtualAddress,
+                      (char*)lpFileBuff + pSection[i].PointerToRawData,
+                      pSection[i].SizeOfRawData);
+        }
+    }
+
+    // ä¿®å¤å¯¼å…¥è¡¨
+    PIMAGE_IMPORT_DESCRIPTOR pImport = (PIMAGE_IMPORT_DESCRIPTOR)pDll->GetImportDirectoryPointer();
+    
+    while (MyMemCmp(pImport, &ZeroImport, sizeof(IMAGE_IMPORT_DESCRIPTOR) != 0))
+    {
+        // åˆ¤æ–­æ˜¯å¦æœ‰æ•ˆå¯¼å…¥è¡¨é¡¹
+        if (*(DWORD*)((char*)lpDllBuff + pImport->FirstThunk) != NULL) 
+        {
+            // åˆ¤æ–­INTæ˜¯å¦ä¸ºç©ºï¼ŒINTä¸ºç©ºæ—¶åˆ™ä½¿ç”¨IAT
+            DWORD* pThunk = (DWORD*)((char*)lpDllBuff + pImport->OriginalFirstThunk);
+            if (pImport->OriginalFirstThunk == NULL) 
+            {
+                pThunk = (DWORD*)((char*)lpDllBuff + pImport->FirstThunk);
+            }
+
+            // å¾ªç¯INT/IAT
+            while (*pThunk != NULL)
+            {
+                LPVOID lpThunkData = NULL;
+                // åˆ¤æ–­æ˜¯Originalè¿˜æ˜¯Name
+                if(((*pThunk) & 0x80000000) > 0)
+                {
+                    lpThunkData = (LPVOID)((*pThunk) & 0xffff);
+                }
+                else
+                {
+                    lpThunkData = (LPVOID)((char*)lpDllBuff + (*pThunk) + 2);
+                }
+
+                // ä¸èƒ½é€’å½’è°ƒç”¨è‡ªå®ç°çš„LoadLibraryï¼Œè‡ªå®ç°çš„LoadLibraryåªæ”¯æŒè·¯å¾„åŠ è½½dll
+                HMODULE hModule = ::LoadLibrary((char*)lpDllBuff + pImport->Name); 
+                LPVOID lpFunAddr = CMyPe::MyGetProcAddress(hModule, (LPCSTR)lpThunkData);
+
+                // å¡«åˆ°IATä¸­
+                *(DWORD*)((char*)lpDllBuff + pImport->FirstThunk) = (DWORD)lpFunAddr;
+
+                pThunk++;
+            }
+        }
+        pImport++;
+    }
+
+    // ä¿®å¤é‡å®šä½æ•°æ®
+    PIMAGE_BASE_RELOCATION pReloc = (PIMAGE_BASE_RELOCATION)pDll->GetRelocDirectoryPointer();
+    dwRelocSize = pDll->GetRelocDirectorySize();
+    while (dwRelocSize != 0)
+    {
+        DWORD dwRelocPageRva = pReloc->VirtualAddress;
+        DWORD dwSizeOfBlock = pReloc->SizeOfBlock;
+        DWORD dwItemCount = (dwSizeOfBlock - 8) / 2;
+        WORD* pItem = (WORD*)((char*)pReloc + 8);
+        for (DWORD i = 0; i < dwItemCount; ++i)
+        {
+            WORD wItem = pItem[i];
+            // ä¿®å¤æ–¹å¼
+            if ((wItem >> 12) == IMAGE_REL_BASED_HIGHLOW)
+            {
+                char* pDstData = (char*)lpDllBuff + (wItem & 0xfff) + dwRelocPageRva;
+                *(DWORD*)pDstData = (DWORD)lpDllBuff - pDll->GetImageBase() + *(DWORD*)pDstData;
+            }
+        }
+
+        dwRelocSize = dwRelocSize - dwSizeOfBlock;
+        pReloc = (PIMAGE_BASE_RELOCATION)((char*)pReloc + dwSizeOfBlock);
+    }
+
+    // è°ƒç”¨dllmain
+    //dwAddressOfEntryPoint = pDll->GetAddressOfEntryPoint();
+    //PFN_DLLMAIN pFnDllMain = (PFN_DLLMAIN)((char*)lpDllBuff + dwAddressOfEntryPoint);
+    //pFnDllMain((HMODULE)lpDllBuff, DLL_PROCESS_ATTACH, NULL);
+
+    if (lpFileBuff != NULL) {
+        ::UnmapViewOfFile(lpFileBuff);
+    }
+
+    if (hFileMap != NULL) {
+        ::CloseHandle(hFileMap);
+    }
+
+    if (hFile != INVALID_HANDLE_VALUE) {
+        ::CloseHandle(hFile);
+    }
+
+    return lpDllBuff;
+
+EXIT_PROC:
+    if (lpFileBuff != NULL)
+    {
+        ::UnmapViewOfFile(lpFileBuff);
+    }
+
+    if (hFileMap != NULL)
+    {
+        ::CloseHandle(hFileMap);
+    }
+
+    if (hFile != INVALID_HANDLE_VALUE)
+    {
+        ::CloseHandle(hFile);
+    }
+    return NULL;
+}
+
+
+/*
+å‡½æ•°åŠŸèƒ½ï¼šé€šè¿‡å‡½æ•°åœ°å€è·å–å‡½æ•°åç§°/åºå·
+å‚æ•°ï¼š
+  pfnAddrï¼šç›®æ ‡å‡½æ•°åœ°å€
+è¿”å›å€¼ï¼š
+  æˆåŠŸè¿”å›å‡½æ•°åç§°æˆ–åºå·
+  å¤±è´¥è¿”å›NULL
+*/
+LPVOID CMyPe::MyGetProcFunName(LPVOID pfnAddr)
+{
+    if (pfnAddr == NULL)
+        return NULL;
+
+    MY_LIST_ENTRY* pCurNode = NULL;
+    MY_LIST_ENTRY* pPrevNode = NULL;
+    MY_LIST_ENTRY* pNextNode = NULL;
+    MY_LIST_ENTRY* pFirstNode = NULL;
+
+    // é€šè¿‡TEBè·å–æ¨¡å—ä¿¡æ¯è¡¨
+    __asm {
+        pushad;
+        mov eax, fs: [0x18] ;   //teb
+        mov eax, [eax + 0x30];  //peb
+        mov eax, [eax + 0x0c];  //_PEB_LDR_DATA
+        mov eax, [eax + 0x0c];  //æ¨¡å—ä¿¡æ¯è¡¨_LIST_ENTRY,ä¸»æ¨¡å—
+        mov pCurNode, eax;
+        mov ebx, dword ptr[eax];
+        mov pPrevNode, ebx;
+        mov ebx, dword ptr[eax + 0x4];
+        mov pNextNode, ebx;
+        popad;
+    }
+
+    pFirstNode = pCurNode;
+    if (pCurNode == NULL || pPrevNode == NULL || pNextNode == NULL)
+    {
+        return NULL;
+    }
+
+    // éå†æ¨¡å—ä¿¡æ¯è¡¨ï¼Œåœ¨æ¨¡å—çš„å¯¼å‡ºè¡¨ä¸­æŸ¥æ‰¾
+    HMODULE hModule = NULL;
+    MY_LIST_ENTRY* pTmp = NULL;
+    while (pPrevNode != pFirstNode)
+    {
+        hModule = pCurNode->hInstance;
+        if (((DWORD)pfnAddr > (DWORD)hModule) &&
+            ((DWORD)pfnAddr < (DWORD)hModule + pCurNode->nSizeOfImage))
+        {
+            // æ‰¾åˆ°å‡½æ•°åœ°å€æ‰€åœ¨çš„æ¨¡å—ï¼Œå†è¿›è¡Œå¯¼å‡ºè¡¨è§£æ
+            PIMAGE_DOS_HEADER pDosHeader = (PIMAGE_DOS_HEADER)hModule;
+            PIMAGE_NT_HEADERS pNtHeader = (PIMAGE_NT_HEADERS)((char*)pDosHeader + pDosHeader->e_lfanew);
+            PIMAGE_FILE_HEADER pFileHeader = (PIMAGE_FILE_HEADER)(&pNtHeader->FileHeader);
+            PIMAGE_OPTIONAL_HEADER pOptionHeader = (PIMAGE_OPTIONAL_HEADER)(&pNtHeader->OptionalHeader);
+
+            DWORD dwExportTableRva = pOptionHeader->DataDirectory[IMAGE_DIRECTORY_ENTRY_EXPORT].VirtualAddress;
+            PIMAGE_EXPORT_DIRECTORY pExport = (PIMAGE_EXPORT_DIRECTORY)((char*)hModule + dwExportTableRva);
+
+            // è·å–å†…å­˜ä¸­ï¼Œå¯¼å‡ºè¡¨ä¸­ä¸‰ä¸ªè¡¨æ ¼çš„åœ°å€
+            DWORD dwAddressOfFunctionsRva = pExport->AddressOfFunctions;
+            DWORD dwAddressOfNamesRva = pExport->AddressOfNames;
+            DWORD dwAddressOfNameOrdinalsRva = pExport->AddressOfNameOrdinals;
+            DWORD* pAddressOfFunctions = (DWORD*)(dwAddressOfFunctionsRva + (char*)hModule);
+            DWORD* pAddressOfNames = (DWORD*)(dwAddressOfNamesRva + (char*)hModule);
+            WORD*  pAddressOfNameOrdinals = (WORD*)(dwAddressOfNameOrdinalsRva + (char*)hModule);
+
+            // é¦–å…ˆè·å–å‡½æ•°åœ°å€åœ¨å¯¼å‡ºåœ°å€è¡¨ä¸­çš„ç´¢å¼•
+            DWORD dwIndex = -1;
+            for (DWORD i = 0; i < pExport->NumberOfFunctions; ++i)
+            {
+                if ((pAddressOfFunctions[i] + (char*)hModule) == pfnAddr)
+                {
+                    dwIndex = i;
+                    break;
+                }
+            }
+            if (dwIndex == -1) 
+                return NULL;
+
+            // æŸ¥æ‰¾ç´¢å¼•åœ¨åç§°åºå·è¡¨ä¸­æ˜¯å¦å­˜åœ¨ï¼Œå­˜åœ¨åˆ™è¡¨ç¤ºæ˜¯åç§°å¯¼å‡ºï¼Œå¦åˆ™æ˜¯åºå·å¯¼å‡º
+            for (DWORD i = 0; i < pExport->NumberOfNames; ++i)
+            {
+                if (pAddressOfNameOrdinals[i] == dwIndex)
+                {
+                    return pAddressOfNames[i] + (char*)hModule;
+                }
+            }
+            return (LPVOID)(dwIndex + pExport->Base);
+        }
+
+        pTmp = pPrevNode;
+        pCurNode = pTmp;
+        pPrevNode = pTmp->Flink;
+        pNextNode = pTmp->Blink;
+    }
+    return NULL;
+}
+
+
+/*
+å‡½æ•°åŠŸèƒ½ï¼šé€šè¿‡å‡½æ•°åç§°/åºå·ï¼Œè·å–å‡½æ•°åœ°å€
+å‚æ•°ï¼š
+  hInstï¼š     æ¨¡å—å¥æŸ„
+  lpProcNameï¼šå‡½æ•°åç§°/åºå·
+è¿”å›å€¼ï¼š
+  æˆåŠŸè¿”å›æŸ¥æ‰¾åˆ°çš„å‡½æ•°åœ°å€
+  å¤±è´¥è¿”å›NULL
+*/
+LPVOID CMyPe::MyGetProcAddress(HMODULE hInst, LPCSTR lpProcName)
+{
+    if (hInst == NULL || lpProcName == NULL)
+        return NULL;
+
+    // å¯¹æ¨¡å—åŸºå€è¿›è¡ŒPEæ ¼å¼è§£æ
+    PIMAGE_DOS_HEADER pDosHeader = (PIMAGE_DOS_HEADER)hInst;
+    PIMAGE_NT_HEADERS pNtHeader = (PIMAGE_NT_HEADERS)((char*)pDosHeader + pDosHeader->e_lfanew);
+    PIMAGE_FILE_HEADER pFileHeader = (PIMAGE_FILE_HEADER)(&pNtHeader->FileHeader);
+    PIMAGE_OPTIONAL_HEADER pOptionHeader = (PIMAGE_OPTIONAL_HEADER)(&pNtHeader->OptionalHeader);
+    PIMAGE_SECTION_HEADER pSectionHeader = (PIMAGE_SECTION_HEADER)((char*)pOptionHeader + pFileHeader->SizeOfOptionalHeader);
+
+    // è·å–å¯¼å‡ºè¡¨çš„ä½ç½®
+    DWORD dwExportTableRva = pOptionHeader->DataDirectory[IMAGE_DIRECTORY_ENTRY_EXPORT].VirtualAddress;
+    DWORD dwExportTableSize = pOptionHeader->DataDirectory[IMAGE_DIRECTORY_ENTRY_EXPORT].Size;
+    PIMAGE_EXPORT_DIRECTORY pExport = (PIMAGE_EXPORT_DIRECTORY)((char*)hInst + dwExportTableRva);
+    DWORD dwExportEnd = (DWORD)pExport + dwExportTableSize; // å¯¼å…¥è¡¨çš„å¤§å°ï¼Œç”¨æ¥åˆ¤æ–­æ˜¯å¦ä¸ºå¯¼å‡ºè½¬å‘
+
+    // è·å–å†…å­˜ä¸­ï¼Œå¯¼å‡ºè¡¨ä¸­ä¸‰ä¸ªè¡¨æ ¼çš„åœ°å€
+    DWORD dwAddressOfFunctionsRva = pExport->AddressOfFunctions;
+    DWORD dwAddressOfNamesRva = pExport->AddressOfNames;
+    DWORD dwAddressOfNameOrdinalsRva = pExport->AddressOfNameOrdinals;
+    DWORD* pAddressOfFunctions = (DWORD*)(dwAddressOfFunctionsRva + (char*)hInst);
+    DWORD* pAddressOfNames = (DWORD*)(dwAddressOfNamesRva + (char*)hInst);
+    WORD*  pAddressOfNameOrdinals = (WORD*)(dwAddressOfNameOrdinalsRva + (char*)hInst);
+
+    DWORD dwIndex = -1;
+    // é¦–å…ˆåˆ¤æ–­æ˜¯åç§°è¿˜æ˜¯åºå·,å¾—åˆ°AddressOfFunctionsçš„ç´¢å¼•
+    if (((DWORD)lpProcName & 0xFFFF0000) > 0)
+    {
+        // åç§°æŸ¥è¯¢ï¼Œé¦–å…ˆè·å–ç›®æ ‡åç§°åœ¨å¯¼å‡ºåç§°è¡¨ä¸­çš„ç´¢å¼•
+        // åº”è¯¥ä½¿ç”¨å…¶ä»–æŸ¥æ‰¾ç®—æ³•ï¼Œæ­¤æ¬¡æš‚æ—¶å…ˆä½¿ç”¨ç®€å•çš„å­—ç¬¦ä¸²æ¯”è¾ƒ
+        for (DWORD i = 0; i < pExport->NumberOfNames; ++i)
+        {
+            char* pName = (pAddressOfNames[i] + (char*)hInst);
+            if (strcmp(pName, lpProcName) == 0)
+            {
+                // æ‰¾åˆ°ç›®æ ‡å­—ç¬¦ä¸²ï¼ŒåŒä¸‹æ ‡å»è®¿é—®åç§°åºå·è¡¨ï¼Œå¾—åˆ°æœ€ç»ˆçš„ç´¢å¼•
+                dwIndex = pAddressOfNameOrdinals[i];
+            }
+        }
+    }
+    else
+    {
+        // ä½¿ç”¨åºå·æŸ¥è¯¢æ—¶ï¼Œthe high-order word must be zero
+        dwIndex = ((DWORD)lpProcName & 0xFFFF) - pExport->Base;
+    }
+
+    if (dwIndex == -1)
+    {
+        return NULL;
+    }
+
+    // åˆ¤æ–­æ˜¯å¦ä¸ºå¯¼å‡ºè½¬å‘
+    DWORD dwProcAddr = (DWORD)(pAddressOfFunctions[dwIndex] + (char*)hInst);
+    if ((dwProcAddr >= (DWORD)pExport) && (dwProcAddr < dwExportEnd))
+    {
+        // å¦‚æœæ˜¯å¯¼å‡ºè½¬å‘ï¼Œåˆ™éœ€è¦é€’å½’æŸ¥æ‰¾ï¼Œå¯¹åº”çš„åœ°å€ä¿å­˜çš„è½¬å‘çš„dllåç§°å’Œå‡½æ•°åç§°
+        char dllName[MAXBYTE] = { 0 };
+        __asm {
+            pushad;
+            mov esi, dwProcAddr;
+            lea edi, dllName;
+            mov ecx, MAXBYTE;
+            xor edx, edx;
+        LOOP_BEGIN:
+            mov dl, byte ptr ds : [esi] ;
+            cmp dl, 0x2e;
+            jz LOOP_END;
+            movsb;
+            loop LOOP_BEGIN;
+        LOOP_END:
+            inc esi;
+            mov dwProcAddr, esi;
+            popad;
+        }
+        HMODULE hModule = ::LoadLibrary(dllName);  // æ­¤å¤„å¯ä¼˜åŒ–ä¸ºä¸ä½¿ç”¨API
+        return CMyPe::MyGetProcAddress(hModule, (char*)dwProcAddr); // é€’å½’æŸ¥æ‰¾
+    }
+
+    return (void*)dwProcAddr;
+}
+
+
+/*
+å‡½æ•°åŠŸèƒ½ï¼šå¯¼å…¥è¡¨æ³¨å…¥
+å‚æ•°ï¼š
+  lpFileBuffï¼šPEæ–‡ä»¶çš„å†…å­˜åœ°å€
+  lpDllName ï¼šæ³¨å…¥çš„dllåç§°
+  lpProcNameï¼šæ³¨å…¥çš„å‡½æ•°åç§°
+è¿”å›å€¼ï¼š
+  æˆåŠŸè¿”å›PEæ–‡ä»¶æ–°çš„å†…å­˜åœ°å€
+  å¤±è´¥è¿”å›NULL
 */
 LPVOID CMyPe::MyAddImportTableItem(LPVOID lpFileBuff, LPCSTR lpDllName, LPCSTR lpProcName)
 {
-  // PE¸ñÊ½½âÎö
-  PIMAGE_DOS_HEADER pDosHeader = (PIMAGE_DOS_HEADER)lpFileBuff;
-  PIMAGE_NT_HEADERS pNtHeader = (PIMAGE_NT_HEADERS)((char*)pDosHeader + pDosHeader->e_lfanew);
-  PIMAGE_FILE_HEADER pFileHeader = (PIMAGE_FILE_HEADER)(&pNtHeader->FileHeader);
-  PIMAGE_OPTIONAL_HEADER pOptionHeader = (PIMAGE_OPTIONAL_HEADER)(&pNtHeader->OptionalHeader);
-  PIMAGE_SECTION_HEADER pSectionHeader = (PIMAGE_SECTION_HEADER)((char*)pOptionHeader + pFileHeader->SizeOfOptionalHeader);
+    if (lpFileBuff == NULL || lpDllName == NULL || lpProcName == NULL)
+        return NULL;
 
-  // »ñÈ¡¾ÉµÄµ¼Èë±íµÄÎ»ÖÃºÍÏîÊı
-  DWORD dwImportRva = pOptionHeader->DataDirectory[IMAGE_DIRECTORY_ENTRY_IMPORT].VirtualAddress;
-  DWORD dwImportFa = CMyPe::Rva2Fa(dwImportRva, lpFileBuff);
-  LPVOID lpOldImportTable = (char*)lpFileBuff + dwImportFa;
+    // PEæ ¼å¼è§£æ
+    PIMAGE_DOS_HEADER pDosHeader = (PIMAGE_DOS_HEADER)lpFileBuff;
+    PIMAGE_NT_HEADERS pNtHeader = (PIMAGE_NT_HEADERS)((char*)pDosHeader + pDosHeader->e_lfanew);
+    PIMAGE_FILE_HEADER pFileHeader = (PIMAGE_FILE_HEADER)(&pNtHeader->FileHeader);
+    PIMAGE_OPTIONAL_HEADER pOptionHeader = (PIMAGE_OPTIONAL_HEADER)(&pNtHeader->OptionalHeader);
+    PIMAGE_SECTION_HEADER pSectionHeader = (PIMAGE_SECTION_HEADER)((char*)pOptionHeader + pFileHeader->SizeOfOptionalHeader);
 
-  //
-  DWORD dwOldImportCount = 0;
-  IMAGE_IMPORT_DESCRIPTOR structAddImport = { 0 };
-  PIMAGE_IMPORT_DESCRIPTOR lpTmp = (PIMAGE_IMPORT_DESCRIPTOR)lpOldImportTable;
-  while (memcmp(lpTmp, &structAddImport, sizeof(IMAGE_IMPORT_DESCRIPTOR)) !=0)
-  {
-    dwOldImportCount++;
-    lpTmp++;
-  }
+    // è·å–æ—§çš„å¯¼å…¥è¡¨çš„ä½ç½®å’Œé¡¹æ•°
+    DWORD dwImportRva = pOptionHeader->DataDirectory[IMAGE_DIRECTORY_ENTRY_IMPORT].VirtualAddress;
+    DWORD dwImportFa = CMyPe::Rva2Fa(dwImportRva, lpFileBuff);
+    LPVOID lpOldImportTable = (char*)lpFileBuff + dwImportFa;
 
-  // Ôö¼ÓÒ»¸öĞÂ½Ú£¬Í¬Ê±½«Ô­À´µÄµ¼Èë±í¿½±´µ½ĞÂ½Ú
-  DWORD dwOldFileSize = pSectionHeader[pFileHeader->NumberOfSections - 1].SizeOfRawData +
-    pSectionHeader[pFileHeader->NumberOfSections - 1].PointerToRawData;
-  LPVOID lpNewFileBuff = CMyPe::AddSection(lpFileBuff, 
-                                            dwOldFileSize,
-                                            lpOldImportTable, 
-                                            dwOldImportCount * sizeof(IMAGE_IMPORT_DESCRIPTOR));
-  if (lpNewFileBuff == NULL)
-  {
-    // ĞÂÔö½Ú±íÊ§°Ü
-    return NULL;
-  }
-
-  // »ñÈ¡ĞÂÔö½Ú±íÏî
-  PIMAGE_DOS_HEADER pNewDosHeader = (PIMAGE_DOS_HEADER)lpNewFileBuff;
-  PIMAGE_NT_HEADERS pNewNtHeader = (PIMAGE_NT_HEADERS)((char*)pNewDosHeader + pNewDosHeader->e_lfanew);
-  PIMAGE_FILE_HEADER pNewFileHeader = (PIMAGE_FILE_HEADER)(&pNewNtHeader->FileHeader);
-  PIMAGE_OPTIONAL_HEADER pNewOptionHeader = (PIMAGE_OPTIONAL_HEADER)(&pNewNtHeader->OptionalHeader);
-  PIMAGE_SECTION_HEADER pNewSectionHeader = (PIMAGE_SECTION_HEADER)((char*)pNewOptionHeader + pNewFileHeader->SizeOfOptionalHeader);
-  PIMAGE_SECTION_HEADER pAddSectionHeader = &pNewSectionHeader[pNewFileHeader->NumberOfSections - 1];
-  DWORD dwAddSectionVirtualAddress = pAddSectionHeader->VirtualAddress;
-  DWORD dwAddSectionPointerToRawData = pAddSectionHeader->PointerToRawData;
-
-  // ¹¹Ôìµ¼Èë±íĞèÒªµÄdllÃû³ÆºÍThunkData
-  PIMAGE_IMPORT_DESCRIPTOR pNewImportTable = (PIMAGE_IMPORT_DESCRIPTOR)((char*)pNewDosHeader + dwAddSectionPointerToRawData);
-
-  PIMAGE_IMPORT_DESCRIPTOR pNewImportTableItem = pNewImportTable + dwOldImportCount;
-  PVOID pDllName  = (char*)(pNewImportTableItem + 2);
-  PVOID pProcName = (char*)pDllName + strlen(lpDllName) + 0x10;
-  PVOID pThunkData = (char*)pProcName + strlen(lpProcName) + 0x10;
-  memcpy(pDllName, lpDllName, strlen(lpDllName) + 1);
-  memcpy((char*)pProcName + 2, lpProcName, strlen(lpProcName) + 1);
-  *(DWORD*)pThunkData = (DWORD)pProcName - (DWORD)lpNewFileBuff - dwAddSectionPointerToRawData + dwAddSectionVirtualAddress;
-
-  // ¹¹ÔìÒªÔö¼ÓµÄµ¼Èë±í±íÏî£¬×¢ÒâÊÇRva
-  structAddImport.OriginalFirstThunk = NULL;
-  structAddImport.Name = (DWORD)pDllName - (DWORD)lpNewFileBuff - dwAddSectionPointerToRawData + dwAddSectionVirtualAddress;
-  structAddImport.FirstThunk = (DWORD)pThunkData - (DWORD)lpNewFileBuff - dwAddSectionPointerToRawData + dwAddSectionVirtualAddress;
-  
-  // ½«ĞÂÔöµÄµ¼Èë±í±íÏîĞ´µ½µ¼Èë±íµÄ×îºó
-  memcpy(pNewImportTableItem, &structAddImport, sizeof(IMAGE_IMPORT_DESCRIPTOR));
-
-  // ĞŞ¸ÄÊı¾İÄ¿Â¼ÖĞ£¬µ¼Èë±íµÄRva
-  pNewOptionHeader->DataDirectory[IMAGE_DIRECTORY_ENTRY_IMPORT].VirtualAddress = 
-      (DWORD)pNewImportTable - (DWORD)lpNewFileBuff - dwAddSectionPointerToRawData + dwAddSectionVirtualAddress;
-
-  // ²âÊÔ
-  CMyPe::WriteMemoryToFile(lpNewFileBuff, 
-    pAddSectionHeader->SizeOfRawData + (DWORD)pAddSectionHeader->PointerToRawData,
-    TEXT("C:\\Users\\hc\\Desktop\\test\\1.out"));
-  free(lpNewFileBuff);
-
-  return NULL;
-}
-
-DWORD CMyPe::Rva2Fa(DWORD dwRva, LPVOID lpFileBuff)
-{
-  // PE¸ñÊ½½âÎö
-  PIMAGE_DOS_HEADER pDosHeader = (PIMAGE_DOS_HEADER)lpFileBuff;
-  PIMAGE_NT_HEADERS pNtHeader = (PIMAGE_NT_HEADERS)((char*)pDosHeader + pDosHeader->e_lfanew);
-  PIMAGE_FILE_HEADER pFileHeader = (PIMAGE_FILE_HEADER)(&pNtHeader->FileHeader);
-  PIMAGE_OPTIONAL_HEADER pOptionHeader = (PIMAGE_OPTIONAL_HEADER)(&pNtHeader->OptionalHeader);
-  PIMAGE_SECTION_HEADER pSectionHeader = (PIMAGE_SECTION_HEADER)((char*)pOptionHeader + pFileHeader->SizeOfOptionalHeader);
-
-  // ÅĞ¶ÏRVAÊÇ·ñÓĞĞ§,RVAÊÇÏà¶ÔÓÚÄ£¿é»ùÖ·µÄ
-  DWORD dwImageBase = (DWORD)lpFileBuff;
-  DWORD dwVa = dwImageBase + dwRva;
-  if (dwVa < dwImageBase || dwVa >= dwImageBase + pOptionHeader->SizeOfImage)
-  {
-    return -1;
-  }
-  
-  // ±éÀú½Ú±í£¬»ñÈ¡FA
-  for (int i = 0; i < pFileHeader->NumberOfSections; ++i)
-  {
-    DWORD dwVirtualAddress = pSectionHeader->VirtualAddress;  // Ó³Éäµ½ÄÚ´æµÄµØÖ·£¬RVA
-    DWORD dwVirtualSize = pSectionHeader->Misc.VirtualSize;   // Ó³Éäµ½ÄÚ´æµÄÊı¾İ´óĞ¡£¬OS»á½«¸ÃÖµ¶ÔÆëºóÉêÇëÄÚ´æ
-    DWORD dwPointerToRawData = pSectionHeader->PointerToRawData; // ÎÄ¼şÖĞÊı¾İµÄÆ«ÒÆ
-    DWORD dwSizeOfRawData = pSectionHeader->SizeOfRawData;    // ÎÄ¼şÖĞÊı¾İ¶ÔÆëºó´óĞ¡
-
-    if (dwRva >= dwVirtualAddress && dwRva < dwVirtualAddress + dwSizeOfRawData)
+    //
+    DWORD dwOldImportCount = 0;
+    IMAGE_IMPORT_DESCRIPTOR structAddImport = { 0 };
+    PIMAGE_IMPORT_DESCRIPTOR lpTmp = (PIMAGE_IMPORT_DESCRIPTOR)lpOldImportTable;
+    while (memcmp(lpTmp, &structAddImport, sizeof(IMAGE_IMPORT_DESCRIPTOR)) != 0)
     {
-      return dwRva - dwVirtualAddress + dwPointerToRawData;
+        dwOldImportCount++;
+        lpTmp++;
     }
-    pSectionHeader++;
-  } 
 
-  return -1;
-}
+    // å¢åŠ ä¸€ä¸ªæ–°èŠ‚ï¼ŒåŒæ—¶å°†åŸæ¥çš„å¯¼å…¥è¡¨æ‹·è´åˆ°æ–°èŠ‚
+    DWORD dwOldFileSize = pSectionHeader[pFileHeader->NumberOfSections - 1].SizeOfRawData +
+        pSectionHeader[pFileHeader->NumberOfSections - 1].PointerToRawData;
+    LPVOID lpNewFileBuff = CMyPe::AddSection(lpFileBuff,
+        dwOldFileSize,
+        lpOldImportTable,
+        dwOldImportCount * sizeof(IMAGE_IMPORT_DESCRIPTOR));
+    if (lpNewFileBuff == NULL)
+    {
+        // æ–°å¢èŠ‚è¡¨å¤±è´¥
+        return NULL;
+    }
 
-LPVOID CMyPe::GetDosHeaderPointer()
-{
-  return m_pDosHeader;
-}
+    // è·å–æ–°å¢èŠ‚è¡¨é¡¹
+    PIMAGE_DOS_HEADER pNewDosHeader = (PIMAGE_DOS_HEADER)lpNewFileBuff;
+    PIMAGE_NT_HEADERS pNewNtHeader = (PIMAGE_NT_HEADERS)((char*)pNewDosHeader + pNewDosHeader->e_lfanew);
+    PIMAGE_FILE_HEADER pNewFileHeader = (PIMAGE_FILE_HEADER)(&pNewNtHeader->FileHeader);
+    PIMAGE_OPTIONAL_HEADER pNewOptionHeader = (PIMAGE_OPTIONAL_HEADER)(&pNewNtHeader->OptionalHeader);
+    PIMAGE_SECTION_HEADER pNewSectionHeader = (PIMAGE_SECTION_HEADER)((char*)pNewOptionHeader + pNewFileHeader->SizeOfOptionalHeader);
+    PIMAGE_SECTION_HEADER pAddSectionHeader = &pNewSectionHeader[pNewFileHeader->NumberOfSections - 1];
+    DWORD dwAddSectionVirtualAddress = pAddSectionHeader->VirtualAddress;
+    DWORD dwAddSectionPointerToRawData = pAddSectionHeader->PointerToRawData;
 
-LPVOID CMyPe::GetNtHeaderPointer()
-{
-  return m_pNtHeader;
-}
+    // æ„é€ å¯¼å…¥è¡¨éœ€è¦çš„dllåç§°å’ŒThunkData
+    PIMAGE_IMPORT_DESCRIPTOR pNewImportTable = (PIMAGE_IMPORT_DESCRIPTOR)((char*)pNewDosHeader + dwAddSectionPointerToRawData);
 
-LPVOID CMyPe::GetFileHeaderPointer()
-{
-  return m_pFileHeader;
-}
+    PIMAGE_IMPORT_DESCRIPTOR pNewImportTableItem = pNewImportTable + dwOldImportCount;
+    PVOID pDllName = (char*)(pNewImportTableItem + 2);
+    PVOID pProcName = (char*)pDllName + strlen(lpDllName) + 0x10;
+    PVOID pThunkData = (char*)pProcName + strlen(lpProcName) + 0x10;
+    memcpy(pDllName, lpDllName, strlen(lpDllName) + 1);
+    memcpy((char*)pProcName + 2, lpProcName, strlen(lpProcName) + 1);
+    *(DWORD*)pThunkData = (DWORD)pProcName - (DWORD)lpNewFileBuff - dwAddSectionPointerToRawData + dwAddSectionVirtualAddress;
 
-LPVOID CMyPe::GetOptionHeaderPointer()
-{
-  return m_pOptionHeader;
-}
+    // æ„é€ è¦å¢åŠ çš„å¯¼å…¥è¡¨è¡¨é¡¹ï¼Œæ³¨æ„æ˜¯Rva
+    structAddImport.OriginalFirstThunk = NULL;
+    structAddImport.Name = (DWORD)pDllName - (DWORD)lpNewFileBuff - dwAddSectionPointerToRawData + dwAddSectionVirtualAddress;
+    structAddImport.FirstThunk = (DWORD)pThunkData - (DWORD)lpNewFileBuff - dwAddSectionPointerToRawData + dwAddSectionVirtualAddress;
 
-LPVOID CMyPe::GetSectionHeaderPointer()
-{
-  return m_pSectionHeader;
-}
+    // å°†æ–°å¢çš„å¯¼å…¥è¡¨è¡¨é¡¹å†™åˆ°å¯¼å…¥è¡¨çš„æœ€å
+    memcpy(pNewImportTableItem, &structAddImport, sizeof(IMAGE_IMPORT_DESCRIPTOR));
 
-LPVOID CMyPe::GetExportDirectoryPointer()
-{
-  return m_pExportDirectory;
-}
+    // ä¿®æ”¹æ•°æ®ç›®å½•ä¸­ï¼Œå¯¼å…¥è¡¨çš„Rva
+    pNewOptionHeader->DataDirectory[IMAGE_DIRECTORY_ENTRY_IMPORT].VirtualAddress =
+        (DWORD)pNewImportTable - (DWORD)lpNewFileBuff - dwAddSectionPointerToRawData + dwAddSectionVirtualAddress;
 
-DWORD CMyPe::GetExportDirectorySize()
-{
-  return m_dwExportSize;
-}
-
-LPVOID CMyPe::GetImportDirectoryPointer()
-{
-  return m_pImportDirectory;
-}
-
-LPVOID CMyPe::GetResourceDirectoryPointer()
-{
-  return m_pResourceDirectory;
-}
-
-LPVOID CMyPe::GetRelocDirectoryPointer()
-{
-  return m_pRelocDirectory;
-}
-
-DWORD CMyPe::GetRelocDirectorySize()
-{
-  return m_dwRelocSize;
-}
-
-LPVOID CMyPe::GetTlsDirectoryPointer()
-{
-  return m_pTlsDirectory;
-}
-
-WORD CMyPe::GetNumberOfSections()
-{
-  return m_wNumberOfSections;
-}
-
-DWORD CMyPe::GetAddressOfEntryPoint()
-{
-  return m_dwAddressOfEntryPoint;
-}
-
-DWORD CMyPe::GetImageBase()
-{
-  return m_dwImageBase;
-}
-
-DWORD CMyPe::GetSectionAlignment()
-{
-  return m_dwSectionAlignment;
-}
-
-DWORD CMyPe::GetFileAlignment()
-{
-  return m_dwFileAlignment;
-}
-
-DWORD CMyPe::GetSizeOfImage()
-{
-  return m_dwSizeOfImage;
-}
-
-DWORD CMyPe::GetSizeOfHeaders()
-{
-  return m_dwSizeOfHeaders;
-}
-
-DWORD CMyPe::GetNumberOfRvaAndSizes()
-{
-  return m_dwNumberOfRvaAndSizes;
+    return lpNewFileBuff;
 }

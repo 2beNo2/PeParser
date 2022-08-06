@@ -1,106 +1,161 @@
-#pragma once
+ï»¿#pragma once
 #include <Windows.h>
+
+
+/*
+æ¨¡å—ä¿¡æ¯è¡¨{
+  +0  //å‰ä¸€ä¸ªè¡¨çš„åœ°å€
+  +4  //åä¸€ä¸ªè¡¨çš„åœ°å€
+  +18 //å½“å‰æ¨¡å—çš„åŸºå€ hInstance
+  +1C //æ¨¡å—çš„å…¥å£ç‚¹
+  +20 //SizeOfImage
+  +24 //Rtlæ ¼å¼çš„unicodeå­—ç¬¦ä¸²ï¼Œä¿å­˜äº†æ¨¡å—çš„è·¯å¾„
+      {
+        +0 //å­—ç¬¦ä¸²å®é™…é•¿åº¦
+        +2 //å­—ç¬¦ä¸²æ‰€å çš„ç©ºé—´å¤§å°
+        +4 //unicodeå­—ç¬¦ä¸²çš„åœ°å€
+      }
+  +2C //Rtlæ ¼å¼çš„unicodeå­—ç¬¦ä¸²ï¼Œä¿å­˜äº†æ¨¡å—çš„åç§°
+      {
+        +0 //å­—ç¬¦ä¸²å®é™…é•¿åº¦
+        +2 //å­—ç¬¦ä¸²æ‰€å çš„ç©ºé—´å¤§å°
+        +4 //unicodeå­—ç¬¦ä¸²çš„åœ°å€
+      }
+}
+*/
+struct MY_LIST_ENTRY
+{
+    struct MY_LIST_ENTRY* Flink;  //0x0
+    struct MY_LIST_ENTRY* Blink;  //0x4
+    int n1;    //0x8
+    int n2;    //0xC
+    int n3;    //0x10
+    int n4;    //0x14
+    HMODULE hInstance;      //0x18
+    void* pEntryPoint;      //0x1C
+    int nSizeOfImage;       //0x20
+
+    short sLengthOfPath;    //0x24
+    short sSizeOfPath;      //0x26
+    int* pUnicodePathName;  //0x28
+
+    short sLengthOfFile;    //0x2C
+    short sSizeOfFile;      //0x2E
+    int* pUnicodeFileName;  //0x30
+};
+
+
+#define OUT
+#define IN
+#define INOUT
 
 class CMyPe
 {
 public:
-  CMyPe();
-  CMyPe(void* pFileBuff);
-  CMyPe(const char* strFilePath);
-  ~CMyPe();
-
-public:
-  enum {
-    FIlE_OPEN_FAILD,
-    FIlE_WRITE_FAILD,
-    FIlE_WRITE_SUC,
-    FILE_NOT_PE,
-    FILE_IS_PE
-  };
-  static int IsPeFile(void* pFileBuff);
-  static int IsPeFile(const char* strFilePath);
-  static int WriteMemoryToFile(void* pFileBuff, int nFileSize, const char* strFilePath);
-
-public:
-  static DWORD  Rva2Fa(DWORD dwRva, LPVOID lpFileBuff);
-  static DWORD  GetAlignSize(DWORD dwDataSize, DWORD dwAlign);  // ĞÂÔöÒ»¸ö½Ú
-  static LPVOID AddSection(LPVOID lpOldFileBuff, DWORD dwOldFileSize, 
-                    LPVOID lpDataBuff=NULL, DWORD dwDataSize=NULL); 
-
-  // µ¼³ö±íµÄÀûÓÃ
-  static LPVOID MyGetProcFunName(LPVOID pfnAddr); // Í¨¹ıº¯ÊıµØÖ·»ñÈ¡º¯ÊıÃû³Æ/ĞòºÅ
-  static LPVOID MyGetProcAddress(HMODULE hInst, LPCSTR lpProcName); // ×ÔÊµÏÖµÄGetProcAddress
-  
-  // µ¼Èë±íµÄÀûÓÃ µ¼Èë±í×¢Èë
-  static LPVOID MyAddImportTableItem(LPVOID lpFileBuff, LPCSTR lpDllName, LPCSTR lpProcName); 
-
-public:
-  LPVOID GetExportName(DWORD dwOrdinal); // Í¨¹ıĞòºÅÀ´»ñÈ¡µ¼³öµÄÃû³Æ
+    CMyPe();
+    CMyPe(void* pFileBuff);
+    CMyPe(const char* strFilePath);
+    ~CMyPe();
 
 private:
-  void Init();
-  void InitPeFormat(void* pFileBuff);
-  void InitPeFormat(const char* strFilePath);
+    HANDLE m_hFile;
+    HANDLE m_hFileMap;
+    DWORD  m_dwFileSize;
+    LPVOID m_lpFileBuff;
+    BOOL   m_bIsMemInit; // å¦‚æœæ„é€ æ—¶ä¼ å…¥çš„æ˜¯å†…å­˜åœ°å€ï¼Œåˆ™ä¸éœ€è¦å–æ¶ˆæ–‡ä»¶æ˜ å°„
 
 private:
-  HANDLE m_hFile;
-  HANDLE m_hFileMap;
-  DWORD  m_dwFileSize;
-  LPVOID m_lpFileBuff;
-  BOOL   m_bIsMemInit; // Èç¹û¹¹ÔìÊ±´«ÈëµÄÊÇÄÚ´æµØÖ·£¬Ôò²»ĞèÒªÈ¡ÏûÎÄ¼şÓ³Éä
+    void Init();
+    void InitPeFormat(void* pFileBuff);
+    void InitPeFormat(const char* strFilePath);
 
 public:
-  LPVOID GetDosHeaderPointer();
-  LPVOID GetNtHeaderPointer();
-  LPVOID GetFileHeaderPointer();
-  LPVOID GetOptionHeaderPointer();
-  LPVOID GetSectionHeaderPointer();
-
-  LPVOID GetExportDirectoryPointer();
-  LPVOID GetImportDirectoryPointer();
-  LPVOID GetResourceDirectoryPointer();
-  LPVOID GetRelocDirectoryPointer();
-  LPVOID GetTlsDirectoryPointer();
-
-  DWORD  GetExportDirectorySize();
-  DWORD  GetRelocDirectorySize();
-
-private:
-  PIMAGE_DOS_HEADER      m_pDosHeader;
-  PIMAGE_NT_HEADERS      m_pNtHeader;
-  PIMAGE_FILE_HEADER     m_pFileHeader;
-  PIMAGE_OPTIONAL_HEADER m_pOptionHeader;
-  PIMAGE_SECTION_HEADER  m_pSectionHeader;
-
-  PIMAGE_EXPORT_DIRECTORY   m_pExportDirectory;   // µ¼³ö±íÎ»ÓÚÊı¾İÄ¿Â¼µÚ0Ïî
-  PIMAGE_IMPORT_DESCRIPTOR  m_pImportDirectory;   // µ¼Èë±íÎ»ÓÚÊı¾İÄ¿Â¼µÚ1Ïî
-  PIMAGE_RESOURCE_DIRECTORY m_pResourceDirectory; // ×ÊÔ´±íÎ»ÓÚÊı¾İÄ¿Â¼µÚ2Ïî
-  PIMAGE_BASE_RELOCATION    m_pRelocDirectory;    // ÖØ¶¨Î»±íÎ»ÓÚÊı¾İÄ¿Â¼µÚ5Ïî
-  PIMAGE_TLS_DIRECTORY      m_pTlsDirectory;      // TLSÎ»ÓÚÊı¾İÄ¿Â¼µÚ9Ïî
-
-  DWORD m_dwExportSize; // µ¼³ö±íµÄsizeÊÇÓĞÓÃµÄ
-  DWORD m_dwImportSize; // importÊ¹ÓÃÈ«0½á¹¹½áÎ²
-  DWORD m_dwRelocSize;  // ÖØ¶¨Î»±íµÄsizeÊÇÓĞÓÃµÄ£¬±éÀúÊ±»áÓÃÉÏ
+    // æ–‡ä»¶æ“ä½œç›¸å…³
+    enum {
+        FIlE_OPEN_FAILD,
+        FIlE_WRITE_FAILD,
+        FIlE_WRITE_SUC,
+        FILE_NOT_PE,
+        FILE_IS_PE
+    };
+    static int IsPeFile(void* pFileBuff);
+    static int IsPeFile(const char* strFilePath);
+    static int WriteMemoryToFile(void* pFileBuff, int nFileSize, const char* strFilePath);
+    DWORD GetFileSize();
 
 public:
-  // PE½á¹¹²¿·ÖÖØÒª×Ö¶Î
-  WORD  GetNumberOfSections();
-  DWORD GetAddressOfEntryPoint();
-  DWORD GetImageBase();
-  DWORD GetSectionAlignment();
-  DWORD GetFileAlignment();
-  DWORD GetSizeOfImage();
-  DWORD GetSizeOfHeaders();
-  DWORD GetNumberOfRvaAndSizes();
+    // PEå¤´éƒ¨æ•°æ®
+    LPVOID GetDosHeaderPointer() const;
+    LPVOID GetNtHeaderPointer() const;
+    LPVOID GetFileHeaderPointer() const;
+    LPVOID GetOptionHeaderPointer() const;
+    LPVOID GetSectionHeaderPointer() const;
+
+    LPVOID GetExportDirectoryPointer() const;
+    LPVOID GetImportDirectoryPointer() const;
+    LPVOID GetResourceDirectoryPointer() const;
+    LPVOID GetRelocDirectoryPointer() const;
+    LPVOID GetTlsDirectoryPointer() const;
+
+    DWORD  GetExportDirectorySize() const;
+    DWORD  GetRelocDirectorySize() const;
 
 private:
-  WORD  m_wNumberOfSections;      // ½Ú±íµÄ¸öÊı
-  DWORD m_dwAddressOfEntryPoint;  // ³ÌĞòÈë¿Úµã£¬RVA
-  DWORD m_dwImageBase;            // ³ÌĞòµÄ½¨Òé×°ÔØµØÖ·
-  DWORD m_dwSectionAlignment;     // ÔÚÄÚ´æÖĞµÄ¶ÔÆë 
-  DWORD m_dwFileAlignment;        // ÔÚÎÄ¼şÖĞµÄ¶ÔÆë
-  DWORD m_dwSizeOfImage;          // ÎÄ¼şÔØÈëÄÚ´æ²¢¶ÔÆëºóµÄ´óĞ¡
-  DWORD m_dwSizeOfHeaders;        // PEÍ·µÄ´óĞ¡
-  DWORD m_dwNumberOfRvaAndSizes;  // Êı¾İÄ¿Â¼µÄ¸öÊı
+    PIMAGE_DOS_HEADER      m_pDosHeader;
+    PIMAGE_NT_HEADERS      m_pNtHeader;
+    PIMAGE_FILE_HEADER     m_pFileHeader;
+    PIMAGE_OPTIONAL_HEADER m_pOptionHeader;
+    PIMAGE_SECTION_HEADER  m_pSectionHeader;
+
+    PIMAGE_EXPORT_DIRECTORY   m_pExportDirectory;   // å¯¼å‡ºè¡¨ä½äºæ•°æ®ç›®å½•ç¬¬0é¡¹
+    PIMAGE_IMPORT_DESCRIPTOR  m_pImportDirectory;   // å¯¼å…¥è¡¨ä½äºæ•°æ®ç›®å½•ç¬¬1é¡¹
+    PIMAGE_RESOURCE_DIRECTORY m_pResourceDirectory; // èµ„æºè¡¨ä½äºæ•°æ®ç›®å½•ç¬¬2é¡¹
+    PIMAGE_BASE_RELOCATION    m_pRelocDirectory;    // é‡å®šä½è¡¨ä½äºæ•°æ®ç›®å½•ç¬¬5é¡¹
+    PIMAGE_TLS_DIRECTORY      m_pTlsDirectory;      // TLSä½äºæ•°æ®ç›®å½•ç¬¬9é¡¹
+
+    DWORD m_dwExportSize; // å¯¼å‡ºè¡¨çš„sizeæ˜¯æœ‰ç”¨çš„
+    DWORD m_dwImportSize; // importä½¿ç”¨å…¨0ç»“æ„ç»“å°¾
+    DWORD m_dwRelocSize;  // é‡å®šä½è¡¨çš„sizeæ˜¯æœ‰ç”¨çš„ï¼Œéå†æ—¶ä¼šç”¨ä¸Š
+
+public:
+    // PEç»“æ„éƒ¨åˆ†é‡è¦å­—æ®µ
+    WORD  GetNumberOfSections() const;
+    DWORD GetAddressOfEntryPoint() const;
+    DWORD GetImageBase() const;
+    DWORD GetSectionAlignment() const;
+    DWORD GetFileAlignment() const;
+    DWORD GetSizeOfImage() const;
+    DWORD GetSizeOfHeaders() const;
+    DWORD GetNumberOfRvaAndSizes() const;
+
+private:
+    WORD  m_wNumberOfSections;      // èŠ‚è¡¨çš„ä¸ªæ•°
+    DWORD m_dwAddressOfEntryPoint;  // ç¨‹åºå…¥å£ç‚¹ï¼ŒRVA
+    DWORD m_dwImageBase;            // ç¨‹åºçš„å»ºè®®è£…è½½åœ°å€
+    DWORD m_dwSectionAlignment;     // åœ¨å†…å­˜ä¸­çš„å¯¹é½ 
+    DWORD m_dwFileAlignment;        // åœ¨æ–‡ä»¶ä¸­çš„å¯¹é½
+    DWORD m_dwSizeOfImage;          // æ–‡ä»¶è½½å…¥å†…å­˜å¹¶å¯¹é½åçš„å¤§å°
+    DWORD m_dwSizeOfHeaders;        // PEå¤´çš„å¤§å°
+    DWORD m_dwNumberOfRvaAndSizes;  // æ•°æ®ç›®å½•çš„ä¸ªæ•°
+
+public:
+    // åŠŸèƒ½æ–¹æ³•
+    static DWORD Rva2Fa(DWORD dwRva, LPVOID lpFileBuff);
+    static DWORD GetAlignSize(DWORD dwDataSize, DWORD dwAlign);
+
+    // èŠ‚ç›¸å…³
+    static LPVOID AddSection(LPVOID lpOldFileBuff, DWORD dwOldFileSize, 
+        LPVOID lpDataBuff = NULL, DWORD dwDataSize = NULL); // æ–°å¢Section
+
+    // å¯¼å‡ºè¡¨ç›¸å…³
+    static void MyGetModuleName(HMODULE hInst, OUT LPSTR lpModuleName);  // é€šè¿‡æ¨¡å—å¥æŸ„è·å–æ¨¡å—åç§°
+    static void MyGetModulePath(HMODULE hInst, OUT LPSTR lpModulePath);  // é€šè¿‡æ¨¡å—å¥æŸ„è·å–æ¨¡å—è·¯å¾„
+    static LPVOID MyGetModuleBase(LPCSTR lpModuleName);               // é€šè¿‡æ¨¡å—åç§°/è·¯å¾„è·å–æ¨¡å—å¥æŸ„
+    static LPVOID MyLoadLibrary(LPCSTR lpModulePath);                 // è‡ªå®ç°çš„LoadLibraryï¼Œåªæ”¯æŒä¼ å…¥æ¨¡å—è·¯å¾„
+    static LPVOID MyGetProcFunName(LPVOID pfnAddr);                   // é€šè¿‡å‡½æ•°åœ°å€è·å–å‡½æ•°åç§°/åºå·
+    static LPVOID MyGetProcAddress(HMODULE hInst, LPCSTR lpProcName); // è‡ªå®ç°çš„GetProcAddress
+
+    // å¯¼å…¥è¡¨ç›¸å…³
+    static LPVOID MyAddImportTableItem(LPVOID lpFileBuff, LPCSTR lpDllName, LPCSTR lpProcName); // å¢åŠ å¯¼å…¥è¡¨
 };
 
