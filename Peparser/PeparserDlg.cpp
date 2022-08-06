@@ -1137,7 +1137,8 @@ void CPeparserDlg::ShowExportDirectory()
 		csTmp.Format(TEXT("%08X"), pAddressOfFunctions[i]);
 		m_DoubleBListCtrl->SetItemText(dwIndex, 1, csTmp);
 		
-		LPVOID lpName = m_pMyPe->GetExportName(i);
+		//LPVOID lpName = m_pMyPe->GetExportName(i);
+		LPVOID lpName = NULL;
 		if(lpName == NULL)
 		{
 			csTmp.Format(TEXT("%s"), TEXT("N/A"));
