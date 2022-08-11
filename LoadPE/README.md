@@ -1,0 +1,13 @@
+# Load PE From File
+- 熟悉PE文件格式，了解PE文件的装载过程
+  - 确保加载器的ImageBase和被加载程序的ImageBase一致
+    - 链接选项中加上 /base:0x... 
+    - 有的PE文件没有`DLL can move`的属性，没有重定位表
+  - 预留被加载程序SizeOfImage大小的空间
+    - 有重定位表的程序，应该不用预留，处理重定位就行
+  - 拷贝PE文件头部
+    - 避免程序在PE文件头部藏了数据
+  - 拉伸节表，拷贝到准备的内存地址
+  - 修复ImportTable
+  - 若有Tls，修复，调用对应的Tls回调函数
+  - jmp entryPoint
